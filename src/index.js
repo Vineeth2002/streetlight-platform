@@ -4,6 +4,7 @@ const express   = require('express');
 const helmet    = require('helmet');
 const morgan    = require('morgan');
 const rateLimit = require('express-rate-limit');
+const path      = require('path');
 
 const logger               = require('./utils/logger');
 const db                   = require('../config/database');
@@ -20,10 +21,24 @@ const app    = express();
 const server = http.createServer(app);
 const PORT   = parseInt(process.env.PORT) || 3000;
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-hashes'", "cdn.jsdelivr.net", "unpkg.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc:    ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "unpkg.com"],
+      imgSrc:      ["'self'", "data:", "*.tile.openstreetmap.org", "*.openstreetmap.org", "tile.openstreetmap.org"],
+      connectSrc:  ["'self'", "*.openstreetmap.org", "cdn.jsdelivr.net"],
+      fontSrc:     ["'self'", "data:"],
+    },
+  },
+}));
+
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim(), { source:'http' }) } }));
 app.use(express.json({ limit:'1mb' }));
 app.use(express.urlencoded({ extended:false }));
+app.use(express.static(path.join(__dirname, '../public')));
 
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS)   || 60000,
@@ -55,14 +70,14 @@ app.get('/api/v1', (req, res) => {
     service: 'Unified Municipal Streetlight Audit & Governance Platform',
     version: '1.0.0', city: 'Visakhapatnam', poles: 200000,
     endpoints: {
-      'POST /api/v1/telemetry/node':          'Ingest streetlight reading',
-      'POST /api/v1/telemetry/attachment':    'Smart city sensor seed endpoint',
-      'GET  /api/v1/work-orders':             'List work orders',
-      'GET  /api/v1/work-orders/sla-breaches':'Active SLA violations',
-      'GET  /api/v1/poles':                   'List all poles',
-      'GET  /api/v1/poles/zones':             'Zone glow rates',
-      'GET  /api/v1/billing/simulate':        'Simulate penalty',
-      'POST /api/v1/billing/audit/dry-run':   'Preview billing audit',
+      'POST /api/v1/telemetry/node':           'Ingest streetlight reading',
+      'POST /api/v1/telemetry/attachment':     'Smart city sensor seed endpoint',
+      'GET  /api/v1/work-orders':              'List work orders',
+      'GET  /api/v1/work-orders/sla-breaches': 'Active SLA violations',
+      'GET  /api/v1/poles':                    'List all poles',
+      'GET  /api/v1/poles/zones':              'Zone glow rates',
+      'GET  /api/v1/billing/simulate':         'Simulate penalty',
+      'POST /api/v1/billing/audit/dry-run':    'Preview billing audit',
     },
   });
 });
