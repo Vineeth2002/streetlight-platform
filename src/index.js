@@ -28,7 +28,7 @@ app.use(helmet({
       scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-hashes'", "cdn.jsdelivr.net", "unpkg.com"],
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc:    ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "unpkg.com"],
-      imgSrc:      ["'self'", "data:", "*.tile.openstreetmap.org", "*.openstreetmap.org", "tile.openstreetmap.org"],
+      imgSrc: ["'self'", "data:", "*.tile.openstreetmap.org", "*.openstreetmap.org", "tile.openstreetmap.org"],
       connectSrc:  ["'self'", "*.openstreetmap.org", "cdn.jsdelivr.net"],
       fontSrc:     ["'self'", "data:"],
     },
