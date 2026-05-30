@@ -1,0 +1,52 @@
+version: '3.9'
+
+services:
+  db:
+    image: timescale/timescaledb-ha:pg15-latest
+    container_name: streetlight_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: streetlight_vssp
+      POSTGRES_USER: streetlight_admin
+      POSTGRES_PASSWORD: Vizag@1234
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/home/postgres/pgdata/data
+      - ./db/001_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./db/002_triggers.sql:/docker-entrypoint-initdb.d/02_triggers.sql
+      - ./db/003_seed.sql:/docker-entrypoint-initdb.d/03_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streetlight_admin -d streetlight_vssp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: streetlight_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: streetlight_vssp
+      DB_USER: streetlight_admin
+      DB_PASSWORD: Vizag@1234
+      CITY_NAME: Visakhapatnam
+      TOTAL_POLES: 200000
+      LOG_LEVEL: info
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./logs:/app/logs
+
+volumes:
+  db_data:
+    driver: local
