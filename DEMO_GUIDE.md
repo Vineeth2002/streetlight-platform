@@ -2,6 +2,17 @@
 ## Unified Municipal Streetlight Audit & Governance Platform
 ### Visakhapatnam — 2,00,000 Streetlight Poles
 
+1. Open Docker Desktop     → wait for Engine running
+2. docker-compose up -d    → starts database
+3. npm run dev             → starts API
+4. Open Chrome → localhost:3000
+
+docker-compose up -d   -> wait for   ✔ Container streetlight_db   Healthy
+                                     ✔ Container streetlight_api  Started
+npm run dev            -> wait for  Visakhapatnam Streetlight Platform
+                                    Poles: 2,00,000  |  Port: 3000
+http://localhost:3000  ->   Dashboard opens
+
 ---
 
 ## 📋 TABLE OF CONTENTS

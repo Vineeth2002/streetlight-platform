@@ -1,3 +1,15 @@
+CREATE OR REPLACE FUNCTION fn_set_sla_deadline()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.sla_deadline := NEW.reported_timestamp + INTERVAL '48 hours';
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_wo_set_sla_deadline
+    BEFORE INSERT ON work_orders
+    FOR EACH ROW EXECUTE FUNCTION fn_set_sla_deadline();
+
 CREATE OR REPLACE FUNCTION fn_set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
