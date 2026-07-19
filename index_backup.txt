@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GVMC Streetlight Command Center</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>ðŸ›ï¸</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -23,13 +23,6 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 .kpi-lbl{font-size:9px;color:#90a4ae;margin-top:1px}
 .kpi-green{color:#00e676}.kpi-red{color:#ff5252}.kpi-amber{color:#ffab40}.kpi-blue{color:#4fc3f7}
 .live-dot{display:inline-block;width:7px;height:7px;background:#00e676;border-radius:50%;animation:pulse 1.5s infinite;margin-right:4px}
-.header-right{display:flex;align-items:center;gap:10px}
-.user-info{text-align:right;border-right:1px solid rgba(255,255,255,0.1);padding-right:10px;margin-right:2px}
-.user-info-name{font-size:11px;color:#4fc3f7;font-weight:600}
-.user-info-role{font-size:10px;color:#546e8a;margin-top:1px}
-.btn-signout{background:rgba(255,82,82,0.15);border:1px solid rgba(255,82,82,0.3);color:#ff5252;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;transition:all 0.2s}
-.btn-signout:hover{background:rgba(255,82,82,0.3)}
-
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
 
 /* SEARCH */
@@ -75,7 +68,7 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 .legend-item{display:flex;align-items:center;gap:5px;margin-bottom:3px}
 .legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 
-/* BOTTOM AUDIT — draggable like VS Code terminal */
+/* BOTTOM AUDIT â€” draggable like VS Code terminal */
 .bottom-section{background:#0d1420;border-top:2px solid #2a4a9e;padding:0 14px 8px;display:flex;flex-direction:column;height:240px;min-height:48px;max-height:calc(100vh - 280px);position:relative;flex-shrink:0;transition:none}
 .drag-handle{height:8px;cursor:ns-resize;background:transparent;display:flex;align-items:center;justify-content:center;margin:0 -14px;padding:0;user-select:none;flex-shrink:0;border-bottom:0.5px solid #1e3a5f}
 .drag-handle:hover{background:rgba(79,195,247,0.08)}
@@ -164,71 +157,63 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 <body>
 
 <div class="alert-banner" id="alert-banner">
-  <span>🚨</span><span id="alert-text"></span>
-  <span class="alert-close" onclick="this.parentElement.classList.remove('show')">✕</span>
+  <span>ðŸš¨</span><span id="alert-text"></span>
+  <span class="alert-close" onclick="this.parentElement.classList.remove('show')">âœ•</span>
 </div>
 
 <div class="header">
   <div class="header-left">
-    <h1>🏛️ GVMC STREETLIGHT COMMAND CENTER <span class="live-dot"></span> LIVE</h1>
-    <p>Greater Visakhapatnam Municipal Corporation — Smart City Monitoring Platform v1.0 | 2,00,000 Poles</p>
+    <h1>ðŸ›ï¸ GVMC STREETLIGHT COMMAND CENTER <span class="live-dot"></span> LIVE</h1>
+    <p>Greater Visakhapatnam Municipal Corporation â€” Smart City Monitoring Platform v1.0 | 2,00,000 Poles</p>
   </div>
-  <div class="header-right">
-    <div class="user-info">
-      <div class="user-info-name" id="user-name">—</div>
-      <div class="user-info-role" id="user-role"></div>
-    </div>
-    
   <div class="header-kpis">
     <div class="kpi-card"><div class="kpi-val kpi-blue" id="kpi-total">2,00,000</div><div class="kpi-lbl">Total Poles</div></div>
-    <div class="kpi-card"><div class="kpi-val kpi-green" id="kpi-uptime">97.6%</div><div class="kpi-lbl">🚨 City Uptime</div></div>
+    <div class="kpi-card"><div class="kpi-val kpi-green" id="kpi-uptime">97.6%</div><div class="kpi-lbl">ðŸš¨ City Uptime</div></div>
     <div class="kpi-card"><div class="kpi-val kpi-amber" id="kpi-faults">4,800</div><div class="kpi-lbl">Active Faults</div></div>
-    <div class="kpi-card"><div class="kpi-val kpi-red" id="kpi-penalty">₹4,25,120</div><div class="kpi-lbl">🔴 Penalty MTD</div></div>
+    <div class="kpi-card"><div class="kpi-val kpi-red" id="kpi-penalty">â‚¹4,25,120</div><div class="kpi-lbl">ðŸ”´ Penalty MTD</div></div>
     <div class="kpi-card"><div class="kpi-val kpi-amber" id="kpi-sla-breach">12</div><div class="kpi-lbl">SLA Breaches</div></div>
-  </div>
-    <button class="btn-signout" onclick="doLogout()">🔓 Sign Out</button>
   </div>
 </div>
 
 <div class="search-bar">
   <input type="text" id="search-input"
-    placeholder="🔍  Search: Ward 3 / Ward 88 / North Zone / VSP-N-00142 / Team Alpha / Secretariat code / Contractor name..."
+    placeholder="ðŸ”  Search: Ward 3 / Ward 88 / North Zone / VSP-N-00142 / Team Alpha / Secretariat code / Contractor name..."
     oninput="searchLive(this.value)" onkeypress="if(event.key==='Enter')doSearch()">
   <button class="search-btn" onclick="doSearch()">Search</button>
   <span class="search-result" id="search-result"></span>
-  <button class="search-btn" style="background:#1e2a3a" onclick="clearSearch()">✕ Clear</button>
+  <button class="search-btn" style="background:#1e2a3a" onclick="clearSearch()">âœ• Clear</button>
   <div class="search-dropdown" id="search-dropdown"></div>
 </div>
 
 <div class="nav-tabs">
-  <div class="nav-tab active"   onclick="switchPage('overview')">🗺️ Live Overview</div>
-  <div class="nav-tab" onclick="switchPage('contractors')">🏗️ Contractor Performance</div>
-  <div class="nav-tab" onclick="switchPage('sla')">⏱️ SLA Tracker</div>
-  <div class="nav-tab" onclick="switchPage('analytics')">📊 Analytics</div>
+  <div class="nav-tab active"   onclick="switchPage('overview')">ðŸ—ºï¸ Live Overview</div>
+  <div class="nav-tab" onclick="switchPage('contractors')">ðŸ—ï¸ Contractor Performance</div>
+  <div class="nav-tab" onclick="switchPage('sla')">â±ï¸ SLA Tracker</div>
+  <div class="nav-tab" onclick="switchPage('analytics')">ðŸ“Š Analytics</div>
 </div>
 
 <div class="page active" id="page-overview">
   <div class="overview-layout">
     <div class="left-panel">
-      <div class="panel-title">📡 Zonal Real-Time Tracker</div>
+      <div class="panel-title">ðŸ“¡ Zonal Real-Time Tracker</div>
       <div id="zone-list"></div>
       <div style="margin-top:10px">
-        <div class="panel-title">⚡ Component Diagnostics</div>
+        <div class="panel-title">âš¡ Component Diagnostics</div>
         <div class="diag-item"><span>Motherboard (Salt Decay)</span><span style="color:#ff5252;font-weight:700" id="d-motherboard">2,140</span></div>
         <div class="diag-item"><span>Overhead Cable Shorts</span><span style="color:#ff5252;font-weight:700" id="d-cable">1,450</span></div>
         <div class="diag-item"><span>CCMS Box Failures</span><span style="color:#ffab40;font-weight:700" id="d-ccms">95</span></div>
         <div class="diag-item"><span>Day Burning Faults</span><span style="color:#ffab40;font-weight:700" id="d-dayburn">312</span></div>
       </div>
       <div style="margin-top:10px">
-        <div class="panel-title">📊 Line Failure Density</div>
+        <div class="panel-title">ðŸ“Š Line Failure Density</div>
         <div class="diag-item"><span>Single-Pole Outages</span><span style="color:#4fc3f7;font-weight:700" id="d-single">1,210</span></div>
         <div class="diag-item"><span>Partial Line Outages</span><span style="color:#4fc3f7;font-weight:700" id="d-partial">180</span></div>
         <div class="diag-item"><span>Total Loop Blackouts</span><span style="color:#4fc3f7;font-weight:700" id="d-loop">95</span></div>
       </div>
       <div style="margin-top:10px">
-        <div class="panel-title">💡 Energy Savings (Live)</div>
+        <div class="panel-title">ðŸ’¡ Energy Savings (Live)</div>
         <div class="diag-item"><span>Energy Saved Today</span><span style="color:#00e676;font-weight:700" id="d-energy">4,820 kWh</span></div>
-        <div class="diag-item"><span>Cost Saved Today</span><span style="color:#00e676;font-weight:700" id="d-cost">₹28,920</span></div>
+        <div class="diag-item"><span>Cost Saved Today</span><span style="color:#00e676;font-weight:700" id="d-cost">â‚¹28,920</span></div>
         <div class="diag-item"><span>vs Sodium Lamps</span><span style="color:#00e676;font-weight:700">62% less</span></div>
       </div>
     </div>
@@ -246,15 +231,14 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
     </div>
   </div>
   <div class="bottom-section" id="bottom-section">
-    <div class="drag-handle" id="drag-handle" title="Drag up/down to resize — like VS Code terminal">
+    <div class="drag-handle" id="drag-handle" title="Drag up/down to resize â€” like VS Code terminal">
       <div class="drag-bar"></div>
     </div>
     <div class="bottom-header">
-      <div class="panel-title" style="margin-bottom:0">🔄 Master Audit Log — auto-updates every 10s &nbsp;
+      <div class="panel-title" style="margin-bottom:0">ðŸ”„ Master Audit Log â€” auto-updates every 10s &nbsp;
         <span style="font-size:10px;color:#546e8a;font-weight:400">Click any row to open Component Inspector</span>
       </div>
-      <button class="export-btn" onclick="exportExcel()">📥 Export Excel</button>
-      <button class="export-btn" style="background:#1a3a6b;border-color:#4fc3f7;color:#4fc3f7;margin-left:6px" onclick="viewReport()">📊 View Monthly Report</button>
+      <button class="export-btn" onclick="exportExcel()">ðŸ“¥ Export Monthly SLA Report (Excel)</button>
     </div>
     <div class="audit-scroll">
       <table class="audit-table">
@@ -262,7 +246,7 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
           <tr>
             <th>Time</th><th>Pole ID</th><th>Zone</th><th>Ward</th><th>Secretariat</th>
             <th>Wiring</th><th>Wattage</th><th>Fault</th><th>Severity</th>
-            <th>Component</th><th>Team</th><th>Status</th><th>Hours</th><th>SLA</th><th>Penalty ₹</th>
+            <th>Component</th><th>Team</th><th>Status</th><th>Hours</th><th>SLA</th><th>Penalty â‚¹</th>
           </tr>
         </thead>
         <tbody id="audit-body"></tbody>
@@ -274,11 +258,11 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 <div class="page" id="page-contractors">
   <div class="contractors-page">
     <div class="chart-card">
-      <div class="chart-title">Contractor Glow Rate vs SLA Target (%) — All 7 Zones</div>
+      <div class="chart-title">Contractor Glow Rate vs SLA Target (%) â€” All 7 Zones</div>
       <div style="position:relative;height:190px"><canvas id="glowChart"></canvas></div>
     </div>
     <div class="chart-card">
-      <div class="chart-title">Monthly Penalty Accrued per Contractor (₹)</div>
+      <div class="chart-title">Monthly Penalty Accrued per Contractor (â‚¹)</div>
       <div style="position:relative;height:170px"><canvas id="penaltyChart"></canvas></div>
     </div>
     <div class="contractor-cards" id="contractor-cards"></div>
@@ -288,12 +272,12 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 <div class="page" id="page-sla">
   <div class="sla-page">
     <div class="sla-summary">
-      <div class="sla-stat"><div class="sla-stat-val" style="color:#ff5252" id="sla-breached">12</div><div class="sla-stat-lbl">🚨 SLA Breached</div></div>
-      <div class="sla-stat"><div class="sla-stat-val" style="color:#ffab40" id="sla-warning">8</div><div class="sla-stat-lbl">⚠️ Nearing 48h</div></div>
-      <div class="sla-stat"><div class="sla-stat-val" style="color:#00e676" id="sla-ok-count">142</div><div class="sla-stat-lbl">✔ Within SLA</div></div>
+      <div class="sla-stat"><div class="sla-stat-val" style="color:#ff5252" id="sla-breached">12</div><div class="sla-stat-lbl">ðŸš¨ SLA Breached</div></div>
+      <div class="sla-stat"><div class="sla-stat-val" style="color:#ffab40" id="sla-warning">8</div><div class="sla-stat-lbl">âš ï¸ Nearing 48h</div></div>
+      <div class="sla-stat"><div class="sla-stat-val" style="color:#00e676" id="sla-ok-count">142</div><div class="sla-stat-lbl">âœ” Within SLA</div></div>
       <div class="sla-stat"><div class="sla-stat-val" style="color:#4fc3f7" id="sla-avg">6.2h</div><div class="sla-stat-lbl">Avg Resolution</div></div>
     </div>
-    <div class="panel-title">Live Work Orders — Click row to inspect pole</div>
+    <div class="panel-title">Live Work Orders â€” Click row to inspect pole</div>
     <div id="sla-items"></div>
   </div>
 </div>
@@ -309,7 +293,7 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
       <div style="position:relative;height:220px"><canvas id="zoneChart"></canvas></div>
     </div>
     <div class="analytics-card full">
-      <div class="chart-title">Ward-wise Fault Density — Top 20 Wards (click to inspect)</div>
+      <div class="chart-title">Ward-wise Fault Density â€” Top 20 Wards (click to inspect)</div>
       <div id="ward-heatmap" style="display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin-top:8px"></div>
     </div>
   </div>
@@ -320,7 +304,7 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 </div>
 
 <script>
-// ─── MASTER DATA (USING DEFENSIVE JS ARRAYS TO PREVENT MARKDOWN CONFLICTS) ─────
+// â”€â”€â”€ MASTER DATA (USING DEFENSIVE JS ARRAYS TO PREVENT MARKDOWN CONFLICTS) â”€â”€â”€â”€â”€
 const ZONES = new Array(
   {id:1,name:'North Zone',     lat:17.7626,lng:83.2900,ward_range: new Array(1,14),  area:'Madhurawada, Kommadi, Kapuluppada'},
   {id:2,name:'South Zone',     lat:17.6700,lng:83.2300,ward_range: new Array(15,28), area:'Daba Gardens, MVP Colony South, Seethammadhara'},
@@ -385,9 +369,9 @@ const TEAMS = new Array('Team Alpha','Team Beta','Team Delta','Team Sigma','Team
 
 // Maintenance history templates [3]
 const HIST_TEMPLATES = new Array(
-  new Array('Replaced fuse — corrosion at base terminal','Motherboard replaced — white powder fault','Cap missing: moisture ingress. CRITICAL'),
-  new Array('LED driver replaced','Overhead wire spliced','Routine inspection — OK'),
-  new Array('Cable theft repair — new copper installed','Cabinet MCB tripped — reset','Photocell replaced'),
+  new Array('Replaced fuse â€” corrosion at base terminal','Motherboard replaced â€” white powder fault','Cap missing: moisture ingress. CRITICAL'),
+  new Array('LED driver replaced','Overhead wire spliced','Routine inspection â€” OK'),
+  new Array('Cable theft repair â€” new copper installed','Cabinet MCB tripped â€” reset','Photocell replaced'),
   new Array('Salt cleaning done on PCB','Driver board swapped','Pole realignment after road work')
 );
 
@@ -400,7 +384,7 @@ let zoneData = ZONES.map(z=>({
 
 let auditLog = new Array();
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function getZoneForWard(w){ return ZONES.find(z=>w>=z.ward_range.at(0)&&w<=z.ward_range.at(1)); }
 function getContractorForZone(zName){ return CONTRACTORS.find(c=>c.zone===zName); }
 
@@ -478,10 +462,10 @@ function generateEntry(isNew=false){
 
 for(let i=0;i<35;i++) auditLog.push(generateEntry(false));
 
-// ─── MAP ──────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ MAP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const map = L.map('map',{zoomControl:true}).setView(new Array(17.7199,83.2956),12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution:'© OpenStreetMap',maxZoom:19,
+  attribution:'Â© OpenStreetMap',maxZoom:19,
 }).addTo(map);
 
 const zoneMarkers = new Object();
@@ -495,7 +479,7 @@ zoneData.forEach(z=>{
 
 let faultMarkers= new Array(), searchHighlight=null;
 
-// Rich map popup — shows quick summary + button to open full inspector [4]
+// Rich map popup â€” shows quick summary + button to open full inspector [4]
 function buildPolePopup(e){
   const isSla    = parseFloat(e.hoursOpen)>48;
   const isCrit   = e.severity==='CRITICAL';
@@ -508,32 +492,32 @@ function buildPolePopup(e){
       <span style="font-size:9px;padding:1px 7px;border-radius:10px;background:rgba(255,255,255,0.15);color:#fff">${e.wattage}W ${e.wiring}</span>
     </div>
     <div style="margin-bottom:6px;border-bottom:1px solid #e8e8e8;padding-bottom:6px">
-      <div style="font-size:9px;color:#1a4fa0;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">📍 Admin & WAS</div>
+      <div style="font-size:9px;color:#1a4fa0;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">ðŸ“ Admin & WAS</div>
       <div style="display:flex;justify-content:space-between"><span style="color:#666">Ward / Code</span><b>W-${e.wardNum} / ${e.secretariat_code}</b></div>
       <div style="display:flex;justify-content:space-between;margin-top:2px"><span style="color:#666">WAS</span><b>${e.was_name}</b></div>
-      <div style="display:flex;justify-content:space-between;margin-top:2px;color:#2ecc71"><span style="color:#666">Phone</span><b>📞 +91 ${e.was_phone}</b></div>
+      <div style="display:flex;justify-content:space-between;margin-top:2px;color:#2ecc71"><span style="color:#666">Phone</span><b>ðŸ“ž +91 ${e.was_phone}</b></div>
     </div>
     <div style="margin-bottom:6px;border-bottom:1px solid #e8e8e8;padding-bottom:6px">
-      <div style="font-size:9px;color:#1a4fa0;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">⚡ Electrical</div>
+      <div style="font-size:9px;color:#1a4fa0;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">âš¡ Electrical</div>
       <div style="display:flex;justify-content:space-between"><span style="color:#666">Voltage / Current</span><b>${e.voltage}V / ${e.current}A</b></div>
       <div style="display:flex;justify-content:space-between;margin-top:2px"><span style="color:#666">Active Power</span><b>${e.activePower}W (PF: ${e.powerFactor})</b></div>
       <div style="display:flex;justify-content:space-between;margin-top:2px"><span style="color:#666">Fault</span><b style="color:${isCrit?'#ff5252':'#ff9800'}">${e.faultLabel}</b></div>
     </div>
     <div style="margin-bottom:6px;border-bottom:1px solid #e8e8e8;padding-bottom:6px">
-      <div style="font-size:9px;color:#1a4fa0;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">📋 Ticket & SLA</div>
+      <div style="font-size:9px;color:#1a4fa0;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">ðŸ“‹ Ticket & SLA</div>
       <div style="display:flex;justify-content:space-between"><span style="color:#666">Status</span><b style="color:${statusCol}">${statusTxt}</b></div>
       <div style="display:flex;justify-content:space-between;margin-top:2px"><span style="color:#666">Hours Open</span><b style="color:${isSla?'#ff5252':'#23a05d'}">${e.hoursOpen}h</b></div>
-      ${e.penalty>0?`<div style="display:flex;justify-content:space-between;margin-top:2px;color:#ff5252;font-weight:700"><span style="color:#666">Penalty</span><span>₹${e.penalty.toLocaleString('en-IN')}</span></div>`:''}
+      ${e.penalty>0?`<div style="display:flex;justify-content:space-between;margin-top:2px;color:#ff5252;font-weight:700"><span style="color:#666">Penalty</span><span>â‚¹${e.penalty.toLocaleString('en-IN')}</span></div>`:''}
     </div>
     <div style="margin-bottom:8px">
-      <div style="font-size:9px;color:#1a4fa0;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">🔌 Smart City Port</div>
+      <div style="font-size:9px;color:#1a4fa0;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">ðŸ”Œ Smart City Port</div>
       <div style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.04);padding:4px 6px;border-radius:4px;border:1px dashed ${portCol}">
         <span style="width:7px;height:7px;border-radius:50%;background:${portCol};display:inline-block;flex-shrink:0"></span>
-        <span style="font-size:10px;font-weight:600;color:#444">Port: ${e.portStatus} · ${e.wiring} wiring</span>
+        <span style="font-size:10px;font-weight:600;color:#444">Port: ${e.portStatus} Â· ${e.wiring} wiring</span>
       </div>
     </div>
     <button onclick="openInspectorById('${e.id}')" style="width:100%;background:#1a4fa0;border:none;color:#fff;padding:6px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.3px">
-      🔍 Open Full 5-Layer Component Inspector
+      ðŸ” Open Full 5-Layer Component Inspector
     </button>
   </div>`;
 }
@@ -558,9 +542,9 @@ function buildZonePopup(z){
     <table style="width:100%;margin-top:8px;font-size:11px">
       <tr><td style="color:#666">Glow Rate</td><td style="font-weight:700;color:${col};text-align:right">${z.glow}%</td></tr>
       <tr><td style="color:#666">Active Faults</td><td style="font-weight:700;color:#ff5252;text-align:right">${z.faults.toLocaleString('en-IN')}</td></tr>
-      <tr><td style="color:#666">Penalty MTD</td><td style="font-weight:700;color:#ff9800;text-align:right">₹${z.penalty.toLocaleString('en-IN')}</td></tr>
+      <tr><td style="color:#666">Penalty MTD</td><td style="font-weight:700;color:#ff9800;text-align:right">â‚¹${z.penalty.toLocaleString('en-IN')}</td></tr>
       <tr><td style="color:#666">Contractor</td><td style="text-align:right">${con?con.short:'-'}</td></tr>
-      <tr><td style="color:#666">Wards</td><td style="text-align:right">${z.ward_range.at(0)}–${z.ward_range.at(1)}</td></tr>
+      <tr><td style="color:#666">Wards</td><td style="text-align:right">${z.ward_range.at(0)}â€“${z.ward_range.at(1)}</td></tr>
     </table>
     <div style="margin-top:6px;font-size:10px;color:#888">Click fault dot for Component Inspector</div>
   </div>`;
@@ -568,29 +552,29 @@ function buildZonePopup(z){
 
 auditLog.forEach(e=>addFaultMarker(e));
 
-// ─── 4-LAYER INSPECTOR POPUP ──────────────────────────────────────────────────
+// â”€â”€â”€ 4-LAYER INSPECTOR POPUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function openInspector(e){
   const sevCol = e.severity==='CRITICAL'?'#ff5252':e.severity==='HIGH'?'#ffab40':'#4fc3f7';
   const slaCol = e.slaBreached?'#ff5252':'#00e676';
   const slaText = e.slaBreached
-  ?`SLA_VIOLATED 🔴 — ${(parseFloat(e.hoursOpen)-48).toFixed(1)}h overdue`
-    :`WITHIN SLA 🟢 — ${(48-parseFloat(e.hoursOpen)).toFixed(1)}h remaining`;
+  ?`SLA_VIOLATED ðŸ”´ â€” ${(parseFloat(e.hoursOpen)-48).toFixed(1)}h overdue`
+    :`WITHIN SLA ðŸŸ¢ â€” ${(48-parseFloat(e.hoursOpen)).toFixed(1)}h remaining`;
   const voltOk = parseFloat(e.voltage)>180;
   const currZero = parseFloat(e.current)===0;
   const portCol  = e.portStatus==='READY'?'#00e676':'#546e8a';
-  const portText = e.portStatus==='READY'?'READY 🟢 — Expansion port active':'NOT FITTED — Standard pole';
+  const portText = e.portStatus==='READY'?'READY ðŸŸ¢ â€” Expansion port active':'NOT FITTED â€” Standard pole';
 
   document.getElementById('inspector-box').innerHTML = `
     <div class="insp-header">
       <div>
-        <div class="insp-title">🔍 COMPONENT INSPECTOR — ${e.id}</div>
-        <div style="font-size:11px;color:#90a4ae;margin-top:2px">${e.zone} · ${e.wardLabel} · ${e.area}</div>
+        <div class="insp-title">ðŸ” COMPONENT INSPECTOR â€” ${e.id}</div>
+        <div style="font-size:11px;color:#90a4ae;margin-top:2px">${e.zone} Â· ${e.wardLabel} Â· ${e.area}</div>
       </div>
-      <div class="insp-close" onclick="closeInspector()">✕</div>
+      <div class="insp-close" onclick="closeInspector()">âœ•</div>
     </div>
 
     <div class="insp-layer">
-      <div class="insp-layer-title">📍 Layer 1 — Location & Accountability</div>
+      <div class="insp-layer-title">ðŸ“ Layer 1 â€” Location & Accountability</div>
       <div class="insp-grid">
         <div>
           <div class="insp-row"><span class="insp-label">Zone</span><span class="insp-value">${e.zone}</span></div>
@@ -603,7 +587,7 @@ function openInspector(e){
           <div style="background:rgba(79,195,247,0.08);border:1px solid rgba(79,195,247,0.2);border-radius:8px;padding:10px;margin-bottom:6px">
             <div style="font-size:10px;color:#4fc3f7;margin-bottom:4px">WARD AMENITY SECRETARY</div>
             <div style="font-size:13px;font-weight:700;color:#e0e6ff">${e.was_name}</div>
-            <div style="font-size:12px;color:#00e676;margin-top:3px">📞 +91 ${e.was_phone}</div>
+            <div style="font-size:12px;color:#00e676;margin-top:3px">ðŸ“ž +91 ${e.was_phone}</div>
           </div>
           <div class="insp-row"><span class="insp-label">Contractor</span><span class="insp-value" style="font-size:11px">${e.contractor_short}</span></div>
           <div class="insp-row"><span class="insp-label">O&M Team</span><span class="insp-value">${e.team}</span></div>
@@ -614,11 +598,11 @@ function openInspector(e){
     </div>
 
     <div class="insp-layer">
-      <div class="insp-layer-title">⚡ Layer 2 — Electrical Parameters (CCMS Node Stream)</div>
+      <div class="insp-layer-title">âš¡ Layer 2 â€” Electrical Parameters (CCMS Node Stream)</div>
       <div class="insp-grid">
         <div>
           <div class="insp-row"><span class="insp-label">Voltage RMS</span><span class="insp-value ${voltOk?'ok':'critical'}">${e.voltage} V ${voltOk?'(Nominal)':'(NO SUPPLY)'}</span></div>
-          <div class="insp-row"><span class="insp-label">Current RMS</span><span class="insp-value ${currZero?'critical':'ok'}">${e.current} A ${currZero?'🚨 FAULT':''}</span></div>
+          <div class="insp-row"><span class="insp-label">Current RMS</span><span class="insp-value ${currZero?'critical':'ok'}">${e.current} A ${currZero?'ðŸš¨ FAULT':''}</span></div>
           <div class="insp-row"><span class="insp-label">Active Power</span><span class="insp-value">${e.activePower} W</span></div>
           <div class="insp-row"><span class="insp-label">Power Factor</span><span class="insp-value">${e.powerFactor}</span></div>
         </div>
@@ -629,8 +613,8 @@ function openInspector(e){
             <div style="font-size:11px;color:#ffcdd2;margin-top:4px">Component: ${e.damagedComponent}</div>
             <div style="font-size:11px;color:${sevCol};margin-top:3px;font-weight:600">Severity: ${e.severity}</div>
             <div style="font-size:10px;color:#546e8a;margin-top:4px">
-              ${voltOk&&currZero?'Supply present but no load — driver/lamp dead':''}
-              ${!voltOk&&currZero?'No supply — upstream cable or fuse fault':''}
+              ${voltOk&&currZero?'Supply present but no load â€” driver/lamp dead':''}
+              ${!voltOk&&currZero?'No supply â€” upstream cable or fuse fault':''}
             </div>
           </div>
         </div>
@@ -638,10 +622,10 @@ function openInspector(e){
     </div>
 
     <div class="insp-layer">
-      <div class="insp-layer-title">📋 Layer 3 — Active Ticket Lifecycle</div>
+      <div class="insp-layer-title">ðŸ“‹ Layer 3 â€” Active Ticket Lifecycle</div>
       <div class="insp-grid">
         <div>
-          <div class="insp-row"><span class="insp-label">Ticket Status</span><span class="insp-value" style="color:${slaCol}">${e.resolved?'RESOLVED ✔':slaText}</span></div>
+          <div class="insp-row"><span class="insp-label">Ticket Status</span><span class="insp-value" style="color:${slaCol}">${e.resolved?'RESOLVED âœ”':slaText}</span></div>
           <div class="insp-row"><span class="insp-label">Reported At</span><span class="insp-value">${e.reportedFull}</span></div>
           <div class="insp-row"><span class="insp-label">Hours Open</span><span class="insp-value ${e.slaBreached?'critical':'ok'}">${e.hoursOpen}h</span></div>
           <div class="insp-row"><span class="insp-label">SLA Deadline</span><span class="insp-value">48 hours</span></div>
@@ -652,10 +636,10 @@ function openInspector(e){
           <div style="background:rgba(255,${e.slaBreached?'82,82':'171,64'},0.08);border:1px solid rgba(255,${e.slaBreached?'82,82':'171,64'},0.3);border-radius:8px;padding:10px">
             <div style="font-size:10px;color:${slaCol};margin-bottom:4px">PENALTY CALCULATION</div>
             <div class="insp-row"><span style="font-size:11px;color:#546e8a">Days Overdue</span><span style="font-size:12px;font-weight:700;color:${e.slaBreached?'#ff5252':'#546e8a'}">${e.daysOverdue}</span></div>
-            <div class="insp-row"><span style="font-size:11px;color:#546e8a">Penalty A (Energy)</span><span style="font-size:12px;font-weight:700">₹${e.penaltyA}</span></div>
-            <div class="insp-row"><span style="font-size:11px;color:#546e8a">Penalty B (Demurrage)</span><span style="font-size:12px;font-weight:700">₹${e.penaltyB}</span></div>
+            <div class="insp-row"><span style="font-size:11px;color:#546e8a">Penalty A (Energy)</span><span style="font-size:12px;font-weight:700">â‚¹${e.penaltyA}</span></div>
+            <div class="insp-row"><span style="font-size:11px;color:#546e8a">Penalty B (Demurrage)</span><span style="font-size:12px;font-weight:700">â‚¹${e.penaltyB}</span></div>
             <div style="border-top:1px solid rgba(255,255,255,0.1);margin-top:5px;padding-top:5px">
-              <div class="insp-row"><span style="font-size:11px;color:#ff5252;font-weight:600">Applied Penalty</span><span style="font-size:14px;font-weight:700;color:#ff5252">₹${e.penalty.toLocaleString('en-IN')}</span></div>
+              <div class="insp-row"><span style="font-size:11px;color:#ff5252;font-weight:600">Applied Penalty</span><span style="font-size:14px;font-weight:700;color:#ff5252">â‚¹${e.penalty.toLocaleString('en-IN')}</span></div>
             </div>
           </div>
         </div>
@@ -663,28 +647,28 @@ function openInspector(e){
     </div>
 
     <div class="insp-layer">
-      <div class="insp-layer-title">🔧 Layer 4 — Maintenance Historical Lifecycle</div>
+      <div class="insp-layer-title">ðŸ”§ Layer 4 â€” Maintenance Historical Lifecycle</div>
       ${e.history.map((h,i)=>{
         const isCrit=h.toLowerCase().includes('critical')||h.toLowerCase().includes('missing');
         const d=new Date(Date.now()-(i+1)*45*24*60*60*1000);
         const ds=d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
-        return `<div class="history-item ${isCrit?'critical-hist':''}">${ds}: ${h}${isCrit?' ⚠️':''}</div>`;
+        return `<div class="history-item ${isCrit?'critical-hist':''}">${ds}: ${h}${isCrit?' âš ï¸':''}</div>`;
       }).join('')}
       ${e.history.some(h=>h.toLowerCase().includes('critical')||h.toLowerCase().includes('moisture'))?
         `<div style="background:rgba(255,82,82,0.08);border:1px solid rgba(255,82,82,0.3);border-radius:6px;padding:7px 10px;margin-top:6px;font-size:11px;color:#ffcdd2">
-          ⚠️ CHRONIC ISSUE: This pole has repeated failures. Site inspection recommended for structural defect.
+          âš ï¸ CHRONIC ISSUE: This pole has repeated failures. Site inspection recommended for structural defect.
         </div>`:''}
     </div>
 
     <div class="insp-layer">
-      <div class="insp-layer-title">🔌 Layer 5 — Smart City Attachment Port Status</div>
+      <div class="insp-layer-title">ðŸ”Œ Layer 5 â€” Smart City Attachment Port Status</div>
       <div class="port-status">
         <div class="port-dot" style="background:${portCol}"></div>
         <div>
           <div style="font-size:13px;font-weight:700;color:${portCol}">${portText}</div>
           <div style="font-size:11px;color:#546e8a;margin-top:2px">
             ${e.portStatus==='READY'
-            ?'This pole can host environmental sensors, traffic cameras, drain monitors — zero new wiring needed.'
+            ?'This pole can host environmental sensors, traffic cameras, drain monitors â€” zero new wiring needed.'
               :'Standard LED pole. Upgrade to CCMS node to enable smart city expansion port.'}
           </div>
         </div>
@@ -698,7 +682,7 @@ function closeInspector(){
   document.getElementById('inspector-overlay').classList.remove('show');
 }
 
-// ─── ZONE LIST ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ ZONE LIST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function renderZones(){
   document.getElementById('zone-list').innerHTML = zoneData.map(z=>{
     const pct=parseFloat(z.glow);
@@ -706,7 +690,7 @@ function renderZones(){
     return `<div class="zone-row" onclick="focusZone(${z.id})">
       <div style="flex:1">
         <div style="font-size:11.5px;font-weight:500">${z.name}</div>
-        <div style="font-size:9px;color:#546e8a">Wards ${z.ward_range.at(0)}–${z.ward_range.at(1)} · ${z.faults} faults</div>
+        <div style="font-size:9px;color:#546e8a">Wards ${z.ward_range.at(0)}â€“${z.ward_range.at(1)} Â· ${z.faults} faults</div>
         <div class="zone-bar"><div class="zone-bar-fill" style="width:${pct}%;background:${col}"></div></div>
       </div>
       <div style="color:${col};font-weight:700;font-size:12px;margin-left:8px">${pct}%</div>
@@ -719,8 +703,8 @@ function focusZone(id){
   if(z){ map.setView(new Array(z.lat,z.lng),14); zoneMarkers[z.id]?.marker.openPopup(); }
 }
 
-// ─── AUDIT LOG ────────────────────────────────────────────────────────────────
-// Safe lookup by unique pole ID — never breaks when array shifts
+// â”€â”€â”€ AUDIT LOG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Safe lookup by unique pole ID â€” never breaks when array shifts
 function openInspectorById(poleId){
   const entry = auditLog.find(x => x.id === poleId);
   if(entry) openInspector(entry);
@@ -729,14 +713,14 @@ function openInspectorById(poleId){
 function renderAuditLog(){
   document.getElementById('audit-body').innerHTML = auditLog.slice(0,40).map((e)=>{
     const statusHtml = e.isNew
-    ?`<span class="s-new">🆕 Just Now</span>`
-      :e.resolved?`<span class="s-ok">✔ Resolved</span>`
-      :e.slaBreached?`<span class="s-fail">🚨 SLA BREACH</span>`
-      :`<span class="s-active">⚙ Active</span>`;
+    ?`<span class="s-new">ðŸ†• Just Now</span>`
+      :e.resolved?`<span class="s-ok">âœ” Resolved</span>`
+      :e.slaBreached?`<span class="s-fail">ðŸš¨ SLA BREACH</span>`
+      :`<span class="s-active">âš™ Active</span>`;
     const sevCol=e.severity==='CRITICAL'?'#ff5252':e.severity==='HIGH'?'#ffab40':'#4fc3f7';
     const slaHtml=e.slaBreached
-    ?`<span class="sla-fail">🚨${e.hoursOpen}h</span>`
-      :`<span class="sla-ok">✔OK</span>`;
+    ?`<span class="sla-fail">ðŸš¨${e.hoursOpen}h</span>`
+      :`<span class="sla-ok">âœ”OK</span>`;
     return `<tr onclick="openInspectorById('${e.id}')">
       <td>${e.reportedAt}</td><td><b>${e.id}</b></td>
       <td>${e.zone}</td><td>${e.wardLabel}</td>
@@ -747,12 +731,12 @@ function renderAuditLog(){
       <td style="font-size:10px;color:#90a4ae">${e.damagedComponent}</td>
       <td>${e.team}</td><td>${statusHtml}</td>
       <td>${e.hoursOpen}h</td><td>${slaHtml}</td>
-      <td style="color:${e.penalty>0?'#ff5252':'#546e8a'}">${e.penalty>0?'₹'+e.penalty.toLocaleString('en-IN'):'-'}</td>
+      <td style="color:${e.penalty>0?'#ff5252':'#546e8a'}">${e.penalty>0?'â‚¹'+e.penalty.toLocaleString('en-IN'):'-'}</td>
     </tr>`;
   }).join('');
 }
 
-// ─── KPIs ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function updateKPIs(){
   const totalFaults = zoneData.reduce((s,z)=>s+z.faults,0);
   const avgGlow = (zoneData.reduce((s,z)=>s+parseFloat(z.glow),0)/zoneData.length).toFixed(1);
@@ -760,14 +744,14 @@ function updateKPIs(){
   const breaches = auditLog.filter(e=>e.slaBreached&&!e.resolved).length;
   document.getElementById('kpi-uptime').textContent    = avgGlow+'%';
   document.getElementById('kpi-faults').textContent    = totalFaults.toLocaleString('en-IN');
-  document.getElementById('kpi-penalty').textContent   = '₹'+totalPenalty.toLocaleString('en-IN');
+  document.getElementById('kpi-penalty').textContent   = 'â‚¹'+totalPenalty.toLocaleString('en-IN');
   document.getElementById('kpi-sla-breach').textContent= breaches;
   document.getElementById('sla-breached').textContent  = breaches;
   document.getElementById('sla-warning').textContent   = auditLog.filter(e=>!e.resolved&&parseFloat(e.hoursOpen)>36&&parseFloat(e.hoursOpen)<=48).length;
   document.getElementById('sla-ok-count').textContent  = auditLog.filter(e=>e.resolved&&!e.slaBreached).length;
   const es = Math.floor(totalFaults*0.77);
   document.getElementById('d-energy').textContent = es.toLocaleString('en-IN')+' kWh';
-  document.getElementById('d-cost').textContent   = '₹'+(es*6).toLocaleString('en-IN');
+  document.getElementById('d-cost').textContent   = 'â‚¹'+(es*6).toLocaleString('en-IN');
   document.getElementById('d-motherboard').textContent=(2140+Math.floor(Math.random()*10-5)).toLocaleString('en-IN');
   document.getElementById('d-cable').textContent       =(1450+Math.floor(Math.random()*8-4)).toLocaleString('en-IN');
   document.getElementById('d-ccms').textContent        =(95+Math.floor(Math.random()*4-2)).toString();
@@ -779,21 +763,21 @@ function updateKPIs(){
     (auditLog.filter(e=>e.resolved).reduce((s,e)=>s+parseFloat(e.hoursOpen),0)/Math.max(1,auditLog.filter(e=>e.resolved).length)).toFixed(1)+'h';
 }
 
-// ─── SMART SEARCH (LIVE DROPDOWN) ────────────────────────────────────────────
+// â”€â”€â”€ SMART SEARCH (LIVE DROPDOWN) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Builds search index covering: ward number, ward label, zone name, area name,
 // pole ID, team name, secretariat code, secretariat ref, contractor name
 function buildSearchIndex(){
   const results= new Array();
 
-  // Wards 1-98 — searchStr normalized so "vsp-n-001" matches "vsp n 001"
+  // Wards 1-98 â€” searchStr normalized so "vsp-n-001" matches "vsp n 001"
   for(let w=1;w<=98;w++){
     const zone=getZoneForWard(w);
     const was=WAS_DATA[w];
     results.push({
-      type:'ward', label:`Ward ${w}`, sublabel:`${zone?.name} · ${was.secretariat} · ${was.secretariat_code}`,
+      type:'ward', label:`Ward ${w}`, sublabel:`${zone?.name} Â· ${was.secretariat} Â· ${was.secretariat_code}`,
       action:()=>{
         if(zone){ focusZone(zone.id); switchPage('overview'); }
-        document.getElementById('search-result').textContent=`Ward ${w} → ${zone?.name} (Wards ${zone?.ward_range.at(0)}–${zone?.ward_range.at(1)}) · WAS: ${was.name} · ${was.phone}`;
+        document.getElementById('search-result').textContent=`Ward ${w} â†’ ${zone?.name} (Wards ${zone?.ward_range.at(0)}â€“${zone?.ward_range.at(1)}) Â· WAS: ${was.name} Â· ${was.phone}`;
         document.getElementById('search-result').style.color='#00e676';
       },
       searchStr: normalizeQuery(`ward ${w} ward${w} ${zone?.name||''} ${was.secretariat} ${was.secretariat_code} ${was.name}`),
@@ -803,9 +787,9 @@ function buildSearchIndex(){
   // Zones
   ZONES.forEach(z=>{
     results.push({
-      type:'zone', label:z.name, sublabel:`Wards ${z.ward_range.at(0)}–${z.ward_range.at(1)} · ${z.area}`,
+      type:'zone', label:z.name, sublabel:`Wards ${z.ward_range.at(0)}â€“${z.ward_range.at(1)} Â· ${z.area}`,
       action:()=>{ focusZone(z.id); switchPage('overview');
-        document.getElementById('search-result').textContent=`${z.name} — ${z.area}`;
+        document.getElementById('search-result').textContent=`${z.name} â€” ${z.area}`;
         document.getElementById('search-result').style.color='#00e676';
       },
       searchStr: normalizeQuery(`${z.name} ${z.area}`),
@@ -815,9 +799,9 @@ function buildSearchIndex(){
   // Contractors
   CONTRACTORS.forEach(c=>{
     results.push({
-      type:'team', label:c.name, sublabel:`${c.zone} · Invoice ₹${(c.invoice/100000).toFixed(1)}L`,
+      type:'team', label:c.name, sublabel:`${c.zone} Â· Invoice â‚¹${(c.invoice/100000).toFixed(1)}L`,
       action:()=>{ switchPage('contractors');
-        document.getElementById('search-result').textContent=`Contractor: ${c.name} → ${c.zone}`;
+        document.getElementById('search-result').textContent=`Contractor: ${c.name} â†’ ${c.zone}`;
         document.getElementById('search-result').style.color='#00e676';
       },
       searchStr: normalizeQuery(`${c.name} ${c.zone} ${c.short}`),
@@ -838,15 +822,15 @@ function buildSearchIndex(){
     });
   });
 
-  // Pole IDs — normalized so "VSP-N-01042" → "vsp n 01042" matches query
+  // Pole IDs â€” normalized so "VSP-N-01042" â†’ "vsp n 01042" matches query
   auditLog.forEach(e=>{
     results.push({
-      type:'pole', label:e.id, sublabel:`${e.faultLabel} · ${e.wardLabel} · ${e.zone}`,
+      type:'pole', label:e.id, sublabel:`${e.faultLabel} Â· ${e.wardLabel} Â· ${e.zone}`,
       action:()=>{
         map.setView(new Array(e.lat,e.lng),17);
         switchPage('overview');
         setTimeout(()=>openInspector(e),300);
-        document.getElementById('search-result').textContent=`${e.id} — ${e.faultLabel} — ${e.wardLabel}`;
+        document.getElementById('search-result').textContent=`${e.id} â€” ${e.faultLabel} â€” ${e.wardLabel}`;
         document.getElementById('search-result').style.color='#ffab40';
       },
       searchStr: normalizeQuery(`${e.id} ${e.wardLabel} ${e.secretariat} ${e.secretariat_code}`),
@@ -858,19 +842,19 @@ function buildSearchIndex(){
 
 let searchIndex= new Array();
 
-// ─── SEARCH NORMALIZATION UTILITIES ──────────────────────────────────────────
+// â”€â”€â”€ SEARCH NORMALIZATION UTILITIES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Strips dashes, double spaces, leading zeros so:
-// "ward-3" = "ward 3" = "ward  3" = "ward 03" = "ward3" → all match Ward 3
+// "ward-3" = "ward 3" = "ward  3" = "ward 03" = "ward3" â†’ all match Ward 3
 function normalizeQuery(str){
   if(!str) return '';
   return str
   .toLowerCase()
-  .replace(/[-_]+/g,' ')     // ward-3 → ward 3
-  .replace(/\s+/g,' ')       // double spaces → single
+  .replace(/[-_]+/g,' ')     // ward-3 â†’ ward 3
+  .replace(/\s+/g,' ')       // double spaces â†’ single
   .trim();
 }
 
-// Extract the numeric part cleanly: "ward 03" → "3", "88" → "88"
+// Extract the numeric part cleanly: "ward 03" â†’ "3", "88" â†’ "88"
 function extractNum(str){
   const m = str.match(/\d+/);
   return m? parseInt(m,10).toString() : null;
@@ -883,29 +867,29 @@ function searchLive(val){
 
   if(!q){ dd.classList.remove('show'); return; }
 
-  // Always rebuild if cleared by liveUpdate — never fail silently
+  // Always rebuild if cleared by liveUpdate â€” never fail silently
   if(!searchIndex||!searchIndex.length) searchIndex=buildSearchIndex();
 
   const numRef = extractNum(q);
 
   const matches = searchIndex.filter(r=>{
     if(r.searchStr.includes(q)) return true;
-    // Fallback: bare number or "ward 03" style → match ward label
+    // Fallback: bare number or "ward 03" style â†’ match ward label
     if(r.type==='ward' && numRef && r.label.toLowerCase()===`ward ${numRef}`) return true;
     return false;
   }).slice(0,10);
 
   if(!matches.length){
-    dd.innerHTML=`<div class="sdrop-item" style="color:#90a4ae;cursor:default">No results for "${raw}" — try: ward 3, North Zone, VSP-N-00142</div>`;
+    dd.innerHTML=`<div class="sdrop-item" style="color:#90a4ae;cursor:default">No results for "${raw}" â€” try: ward 3, North Zone, VSP-N-00142</div>`;
     dd.classList.add('show');
     return;
   }
 
-  const typeIcons={ward:'🏘️',zone:'🗺️',pole:'💡',team:'👷',sec:'🔑'};
+  const typeIcons={ward:'ðŸ˜ï¸',zone:'ðŸ—ºï¸',pole:'ðŸ’¡',team:'ðŸ‘·',sec:'ðŸ”‘'};
   const typeCls  ={ward:'st-ward',zone:'st-zone',pole:'st-pole',team:'st-team',sec:'st-sec'};
   dd.innerHTML=matches.map((r,i)=>`
     <div class="sdrop-item" onclick="pickResult(${i})">
-      <span>${typeIcons[r.type]||'🔍'}</span>
+      <span>${typeIcons[r.type]||'ðŸ”'}</span>
       <div style="flex:1">
         <div style="font-size:12px;font-weight:500;color:#e0e6ff">${r.label}</div>
         <div style="font-size:10px;color:#546e8a">${r.sublabel}</div>
@@ -962,7 +946,7 @@ document.addEventListener('click',e=>{
 });
 document.getElementById('search-input').addEventListener('keypress',e=>{ if(e.key==='Enter') doSearch(); });
 
-// ─── ENHANCED EXCEL EXPORT ───────────────────────────────────────────────────
+// â”€â”€â”€ ENHANCED EXCEL EXPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function exportExcel(){
   const rows=auditLog.map(e=>({
     'Pole / Box ID':          e.id,
@@ -988,9 +972,9 @@ function exportExcel(){
     'Status':                 e.resolved?'RESOLVED':e.slaBreached?'SLA_VIOLATED':'IN_PROGRESS',
     'Resolution Time':        e.resDuration||'Pending',
     'SLA Status':             e.slaBreached?'FAIL':'OK',
-    'Penalty A – Energy (₹)': parseFloat(e.penaltyA),
-    'Penalty B – Demurrage (₹)': parseFloat(e.penaltyB),
-    'Applied Penalty (₹)':    e.penalty||0,
+    'Penalty A â€“ Energy (â‚¹)': parseFloat(e.penaltyA),
+    'Penalty B â€“ Demurrage (â‚¹)': parseFloat(e.penaltyB),
+    'Applied Penalty (â‚¹)':    e.penalty||0,
     'Future Port Status':     e.portStatus,
     'Latitude':               e.lat.toFixed(6),
     'Longitude':              e.lng.toFixed(6),
@@ -1004,10 +988,10 @@ function exportExcel(){
   const summary=zoneData.map(z=>({
     'Zone': z.name,
     'Area': z.area,
-    'Ward Range': `${z.ward_range.at(0)}–${z.ward_range.at(1)}`,
+    'Ward Range': `${z.ward_range.at(0)}â€“${z.ward_range.at(1)}`,
     'Glow Rate (%)': parseFloat(z.glow),
     'Active Faults': z.faults,
-    'Penalty MTD (₹)': z.penalty,
+    'Penalty MTD (â‚¹)': z.penalty,
     'Contractor': getContractorForZone(z.name)?.name||'-',
     'SLA Target (%)': getContractorForZone(z.name)?.target||98,
     'Status': parseFloat(z.glow)>=98?'MEETING SLA':parseFloat(z.glow)>=96?'AT RISK':'VIOLATING',
@@ -1021,9 +1005,9 @@ function exportExcel(){
     return {
       'Contractor': c.name,
       'Zone': c.zone,
-      'Monthly Invoice (₹)': c.invoice,
-      'Total Penalty MTD (₹)': pen,
-      'Net Payable (₹)': c.invoice-pen,
+      'Monthly Invoice (â‚¹)': c.invoice,
+      'Total Penalty MTD (â‚¹)': pen,
+      'Net Payable (â‚¹)': c.invoice-pen,
       'Glow Rate (%)': zd?parseFloat(zd.glow):'-',
       'SLA Target (%)': c.target,
       'SLA Status': zd&&parseFloat(zd.glow)>=c.target?'MEETING':'VIOLATING',
@@ -1045,7 +1029,7 @@ function exportExcel(){
   XLSX.writeFile(wb, filename);
 }
 
-// ─── CONTRACTOR PAGE ──────────────────────────────────────────────────────────
+// â”€â”€â”€ CONTRACTOR PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let glowChart,penaltyChart,faultChart,zoneChart;
 
 function buildContractorCharts(){
@@ -1071,10 +1055,10 @@ function buildContractorCharts(){
   if(penaltyChart) penaltyChart.destroy();
   penaltyChart=new Chart(document.getElementById('penaltyChart'),{
     type:'bar',
-    data:{labels,datasets: new Array({label:'Penalty ₹',data:penalties,backgroundColor:'rgba(255,82,82,0.6)',borderColor:'#ff5252',borderWidth:1,borderRadius:4})},
+    data:{labels,datasets: new Array({label:'Penalty â‚¹',data:penalties,backgroundColor:'rgba(255,82,82,0.6)',borderColor:'#ff5252',borderWidth:1,borderRadius:4})},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false}},
-      scales:{y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#546e8a',font:{size:10},callback:v=>'₹'+Math.round(v/1000)+'k'}},
+      scales:{y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#546e8a',font:{size:10},callback:v=>'â‚¹'+Math.round(v/1000)+'k'}},
               x:{grid:{display:false},ticks:{color:'#546e8a',font:{size:9}}}}}
   });
 
@@ -1087,15 +1071,15 @@ function buildContractorCharts(){
       <div class="con-zone">${c.zone}</div>
       <div class="con-row"><span class="con-label">Glow Rate</span><span style="font-weight:700;color:${color}">${glow}%</span></div>
       <div class="con-row"><span class="con-label">Target</span><span style="font-weight:600">${c.target}%</span></div>
-      <div class="con-row"><span class="con-label">Invoice</span><span style="font-weight:600">₹${(c.invoice/100000).toFixed(1)}L</span></div>
-      <div class="con-row"><span class="con-label">Penalty</span><span style="font-weight:700;color:#ff5252">₹${(pen/1000).toFixed(1)}k</span></div>
-      <div class="con-row"><span class="con-label">Net Payable</span><span style="font-weight:700;color:#00e676">₹${((c.invoice-pen)/100000).toFixed(1)}L</span></div>
+      <div class="con-row"><span class="con-label">Invoice</span><span style="font-weight:600">â‚¹${(c.invoice/100000).toFixed(1)}L</span></div>
+      <div class="con-row"><span class="con-label">Penalty</span><span style="font-weight:700;color:#ff5252">â‚¹${(pen/1000).toFixed(1)}k</span></div>
+      <div class="con-row"><span class="con-label">Net Payable</span><span style="font-weight:700;color:#00e676">â‚¹${((c.invoice-pen)/100000).toFixed(1)}L</span></div>
       <div class="con-bar-wrap"><div class="con-bar-fill" style="width:${Math.min(100,(glow/c.target*100)).toFixed(0)}%;background:${color}"></div></div>
     </div>`;
   }).join('');
 }
 
-// ─── SLA TRACKER ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ SLA TRACKER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function buildSLATracker(){
   const items=auditLog.filter(e=>!e.resolved).slice(0,20);
   document.getElementById('sla-items').innerHTML=items.map(e=>{
@@ -1115,20 +1099,20 @@ function buildSLATracker(){
         <div style="font-size:10px;color:#546e8a">${e.faultLabel}</div>
       </div>
       <div style="flex:1;padding:0 10px">
-        <div style="font-size:11px">${e.zone} · ${e.wardLabel}</div>
-        <div style="font-size:10px;color:#546e8a">${e.team} · ${e.contractor_short}</div>
+        <div style="font-size:11px">${e.zone} Â· ${e.wardLabel}</div>
+        <div style="font-size:10px;color:#546e8a">${e.team} Â· ${e.contractor_short}</div>
         <div style="font-size:10px;color:#546e8a">Reported: ${e.reportedAt}</div>
       </div>
       <div style="text-align:right;min-width:110px">
         <div class="sla-countdown" style="color:${tcol}">${timer}</div>
         <div style="font-size:10px;color:#546e8a">48h SLA</div>
-        ${e.penalty>0?`<div style="font-size:11px;color:#ff5252;font-weight:600">₹${e.penalty.toLocaleString('en-IN')}</div>`:''}
+        ${e.penalty>0?`<div style="font-size:11px;color:#ff5252;font-weight:600">â‚¹${e.penalty.toLocaleString('en-IN')}</div>`:''}
       </div>
     </div>`;
   }).join('');
 }
 
-// ─── ANALYTICS ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ ANALYTICS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function buildAnalytics(){
   const fCounts={};
   FAULT_TYPES.forEach(f=>fCounts[f]=0);
@@ -1182,14 +1166,14 @@ function buildAnalytics(){
 
     return `<div style="background:rgba(${r},${g},0,0.75);border-radius:6px;padding:6px 4px;text-align:center;cursor:pointer;border:1px solid rgba(255,255,255,0.08)"
       onclick="${clickHandler}"
-      title="Ward ${w} · ${zone?.name} · ${f} faults\nWAS: ${was?.name}">
+      title="Ward ${w} Â· ${zone?.name} Â· ${f} faults\nWAS: ${was?.name}">
       <div style="font-size:11px;font-weight:700">W${w}</div>
       <div style="font-size:10px;color:#ddd">${f}</div>
     </div>`;
   }).join('');
 }
 
-// ─── LIVE UPDATE ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ LIVE UPDATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function liveUpdate(){
   zoneData=zoneData.map(z=>({
   ...z,
@@ -1215,7 +1199,7 @@ function liveUpdate(){
 
   if(newEntry.severity==='CRITICAL'){
     const b=document.getElementById('alert-banner');
-    document.getElementById('alert-text').textContent=`CRITICAL: ${newEntry.faultLabel} at ${newEntry.id} — ${newEntry.zone} — ${newEntry.wardLabel} — WAS: ${newEntry.was_name} (${newEntry.was_phone}) — ${newEntry.team}`;
+    document.getElementById('alert-text').textContent=`CRITICAL: ${newEntry.faultLabel} at ${newEntry.id} â€” ${newEntry.zone} â€” ${newEntry.wardLabel} â€” WAS: ${newEntry.was_name} (${newEntry.was_phone}) â€” ${newEntry.team}`;
     b.classList.add('show');
   }
 
@@ -1226,7 +1210,7 @@ function liveUpdate(){
   if(ap==='page-analytics') buildAnalytics();
 }
 
-// ─── PAGE SWITCH ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ PAGE SWITCH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function switchPage(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
@@ -1239,7 +1223,7 @@ function switchPage(name){
   if(name==='overview')    setTimeout(()=>map.invalidateSize(),50);
 }
 
-// ─── DRAGGABLE AUDIT PANEL (like VS Code terminal) ───────────────────────────
+// â”€â”€â”€ DRAGGABLE AUDIT PANEL (like VS Code terminal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 (function(){
   const handle  = document.getElementById('drag-handle');
   const panel   = document.getElementById('bottom-section');
@@ -1265,7 +1249,7 @@ function switchPage(name){
       window.innerHeight - 280
     );
     panel.style.height = newH + 'px';
-    // map.invalidateSize() removed from here — runs on mouseup only for smooth 60fps drag
+    // map.invalidateSize() removed from here â€” runs on mouseup only for smooth 60fps drag
   });
 
   document.addEventListener('mouseup', () => {
@@ -1284,86 +1268,9 @@ function switchPage(name){
   });
 })();
 
-// ─── AUTH GUARD ───────────────────────────────────────────────────────────────
-(function(){
-  const token = localStorage.getItem('sl_token');
-  const user  = localStorage.getItem('sl_user');
-  if(!token || !user){
-    window.location.href = '/login.html';
-    return;
-  }
-  try{
-    const u = JSON.parse(user);
-    window.CURRENT_USER = u;
-    window.CURRENT_ROLE = u.role;
-    if(u.role==='FIELD_ENGINEER') window.location.href='/field.html';
-    else if(u.role==='CONTRACTOR') window.location.href='/contractor.html';
-    else if(u.role==='GVMC_EE') window.location.href='/ee-dashboard.html';
-  } catch(e){
-    localStorage.clear();
-    window.location.href = '/login.html';
-  }
-})();
-
-// ─── LOGOUT + USER INFO ───────────────────────────────────────────────────────
-function doLogout(){
-  if(!confirm('Are you sure you want to sign out?')) return;
-  const token   = localStorage.getItem('sl_token');
-  const refresh = localStorage.getItem('sl_refresh');
-  fetch('/api/v1/auth/logout',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-    body:JSON.stringify({refresh_token:refresh}),
-  }).finally(()=>{
-    localStorage.clear();
-    window.location.href='/login.html';
-  });
-}
-
-(function(){
-  const u = window.CURRENT_USER;
-  if(!u) return;
-  const roleLabels={
-    'SUPER_ADMIN':'Super Admin',
-    'GVMC_COMMISSIONER':'Commissioner',
-    'GVMC_EE':'Executive Engineer',
-    'CONTRACTOR':'Contractor',
-    'FIELD_ENGINEER':'Field Engineer',
-    'READ_ONLY':'Read Only',
-  };
-  const el=document.getElementById('user-name');
-  const rl=document.getElementById('user-role');
-  if(el) el.textContent=u.full_name||u.email;
-  if(rl) rl.textContent=roleLabels[u.role]||u.role;
-})();
-
-// ─── VIEW MONTHLY REPORT ──────────────────────────────────────────────────────
-async function viewReport(){
-  const token = localStorage.getItem('sl_token');
-  if(!token){ alert('Please login first'); return; }
-  try {
-    const res = await fetch('/api/v1/billing/report/preview', {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if(res.status === 401){
-      alert('Session expired. Please login again.');
-      localStorage.clear();
-      window.location.href = '/login.html';
-      return;
-    }
-    const html = await res.text();
-    const blob = new Blob([html], {type:'text/html'});
-    const url  = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-  } catch(err){
-    alert('Could not generate report. Please try again.');
-  }
-}
-
-// ─── INIT ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ INIT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 renderZones(); renderAuditLog(); updateKPIs();
 setInterval(liveUpdate,10000);
-
 </script>
 </body>
 </html>
