@@ -23,13 +23,6 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 .kpi-lbl{font-size:9px;color:#90a4ae;margin-top:1px}
 .kpi-green{color:#00e676}.kpi-red{color:#ff5252}.kpi-amber{color:#ffab40}.kpi-blue{color:#4fc3f7}
 .live-dot{display:inline-block;width:7px;height:7px;background:#00e676;border-radius:50%;animation:pulse 1.5s infinite;margin-right:4px}
-.header-right{display:flex;align-items:center;gap:10px}
-.user-info{text-align:right;border-right:1px solid rgba(255,255,255,0.1);padding-right:10px;margin-right:2px}
-.user-info-name{font-size:11px;color:#4fc3f7;font-weight:600}
-.user-info-role{font-size:10px;color:#546e8a;margin-top:1px}
-.btn-signout{background:rgba(255,82,82,0.15);border:1px solid rgba(255,82,82,0.3);color:#ff5252;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;transition:all 0.2s}
-.btn-signout:hover{background:rgba(255,82,82,0.3)}
-
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
 
 /* SEARCH */
@@ -173,20 +166,12 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
     <h1>🏛️ GVMC STREETLIGHT COMMAND CENTER <span class="live-dot"></span> LIVE</h1>
     <p>Greater Visakhapatnam Municipal Corporation — Smart City Monitoring Platform v1.0 | 2,00,000 Poles</p>
   </div>
-  <div class="header-right">
-    <div class="user-info">
-      <div class="user-info-name" id="user-name">—</div>
-      <div class="user-info-role" id="user-role"></div>
-    </div>
-    
   <div class="header-kpis">
     <div class="kpi-card"><div class="kpi-val kpi-blue" id="kpi-total">2,00,000</div><div class="kpi-lbl">Total Poles</div></div>
     <div class="kpi-card"><div class="kpi-val kpi-green" id="kpi-uptime">97.6%</div><div class="kpi-lbl">🚨 City Uptime</div></div>
     <div class="kpi-card"><div class="kpi-val kpi-amber" id="kpi-faults">4,800</div><div class="kpi-lbl">Active Faults</div></div>
     <div class="kpi-card"><div class="kpi-val kpi-red" id="kpi-penalty">₹4,25,120</div><div class="kpi-lbl">🔴 Penalty MTD</div></div>
     <div class="kpi-card"><div class="kpi-val kpi-amber" id="kpi-sla-breach">12</div><div class="kpi-lbl">SLA Breaches</div></div>
-  </div>
-    <button class="btn-signout" onclick="doLogout()">🔓 Sign Out</button>
   </div>
 </div>
 
@@ -253,8 +238,7 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
       <div class="panel-title" style="margin-bottom:0">🔄 Master Audit Log — auto-updates every 10s &nbsp;
         <span style="font-size:10px;color:#546e8a;font-weight:400">Click any row to open Component Inspector</span>
       </div>
-      <button class="export-btn" onclick="exportExcel()">📥 Export Excel</button>
-      <button class="export-btn" style="background:#1a3a6b;border-color:#4fc3f7;color:#4fc3f7;margin-left:6px" onclick="viewReport()">📊 View Monthly Report</button>
+      <button class="export-btn" onclick="exportExcel()">📥 Export Monthly SLA Report (Excel)</button>
     </div>
     <div class="audit-scroll">
       <table class="audit-table">
@@ -1284,86 +1268,9 @@ function switchPage(name){
   });
 })();
 
-// ─── AUTH GUARD ───────────────────────────────────────────────────────────────
-(function(){
-  const token = localStorage.getItem('sl_token');
-  const user  = localStorage.getItem('sl_user');
-  if(!token || !user){
-    window.location.href = '/login.html';
-    return;
-  }
-  try{
-    const u = JSON.parse(user);
-    window.CURRENT_USER = u;
-    window.CURRENT_ROLE = u.role;
-    if(u.role==='FIELD_ENGINEER') window.location.href='/field.html';
-    else if(u.role==='CONTRACTOR') window.location.href='/contractor.html';
-    else if(u.role==='GVMC_EE') window.location.href='/ee-dashboard.html';
-  } catch(e){
-    localStorage.clear();
-    window.location.href = '/login.html';
-  }
-})();
-
-// ─── LOGOUT + USER INFO ───────────────────────────────────────────────────────
-function doLogout(){
-  if(!confirm('Are you sure you want to sign out?')) return;
-  const token   = localStorage.getItem('sl_token');
-  const refresh = localStorage.getItem('sl_refresh');
-  fetch('/api/v1/auth/logout',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-    body:JSON.stringify({refresh_token:refresh}),
-  }).finally(()=>{
-    localStorage.clear();
-    window.location.href='/login.html';
-  });
-}
-
-(function(){
-  const u = window.CURRENT_USER;
-  if(!u) return;
-  const roleLabels={
-    'SUPER_ADMIN':'Super Admin',
-    'GVMC_COMMISSIONER':'Commissioner',
-    'GVMC_EE':'Executive Engineer',
-    'CONTRACTOR':'Contractor',
-    'FIELD_ENGINEER':'Field Engineer',
-    'READ_ONLY':'Read Only',
-  };
-  const el=document.getElementById('user-name');
-  const rl=document.getElementById('user-role');
-  if(el) el.textContent=u.full_name||u.email;
-  if(rl) rl.textContent=roleLabels[u.role]||u.role;
-})();
-
-// ─── VIEW MONTHLY REPORT ──────────────────────────────────────────────────────
-async function viewReport(){
-  const token = localStorage.getItem('sl_token');
-  if(!token){ alert('Please login first'); return; }
-  try {
-    const res = await fetch('/api/v1/billing/report/preview', {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if(res.status === 401){
-      alert('Session expired. Please login again.');
-      localStorage.clear();
-      window.location.href = '/login.html';
-      return;
-    }
-    const html = await res.text();
-    const blob = new Blob([html], {type:'text/html'});
-    const url  = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-  } catch(err){
-    alert('Could not generate report. Please try again.');
-  }
-}
-
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 renderZones(); renderAuditLog(); updateKPIs();
 setInterval(liveUpdate,10000);
-
 </script>
 </body>
 </html>

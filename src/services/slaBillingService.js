@@ -2,6 +2,7 @@ require('dotenv').config();
 const cron   = require('node-cron');
 const db     = require('../../config/database');
 const logger = require('../utils/logger');
+const { sendMonthlyReport } = require('./reportService');
 
 const CONSTANTS = {
   ENERGY_TARIFF:      parseFloat(process.env.ENERGY_TARIFF_INR_PER_KWH)           || 6.00,
@@ -138,6 +139,7 @@ function startBillingCron() {
     try {
       await resetMonthlyCounters();
       await runMonthlyBillingAudit();
+      await sendMonthlyReport();
     } catch (err) {
       logger.error('Cron billing error', { error: err.message });
     }

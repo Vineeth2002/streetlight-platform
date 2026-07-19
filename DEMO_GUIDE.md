@@ -2,6 +2,54 @@
 ## Unified Municipal Streetlight Audit & Governance Platform
 ### Visakhapatnam — 2,00,000 Streetlight Poles
 
+http://localhost:3000/login.html
+
+Email:    admin@gvmc.gov.in
+Password: password
+
+✅ admin@gvmc.gov.in          → SUPER_ADMIN
+        Password: password
+✅ commissioner@gvmc.gov.in   → GVMC_COMMISSIONER
+✅ ee.north@gvmc.gov.in       → GVMC_EE (North Zone)
+✅ ee.south@gvmc.gov.in       → GVMC_EE (South Zone)
+✅ contractor1@vizagsmartinfra.com → CONTRACTOR
+✅ field.raju@gvmc.gov.in     → FIELD_ENGINEER
+✅ audit@gvmc.gov.in          → READ_ONLY
+
+All passwords: Gvmc@1234
+
+
+To Start server->
+taskkill /F /IM node.exe
+npm start
+
+This is a DNS resolution error — your computer cannot reach Supabase right now. This is a network issue, not a code issue.
+Quick Fixes to Try
+Fix 1 — Check internet connection:
+In bash type - ping google.com
+
+Fix 2 — Test Supabase specifically:
+In bash type - ping db.gwfhqapuzmynlqzddgmz.supabase.co
+
+Fix 3 — Flush DNS cache:
+In bash type - ipconfig /flushdns
+
+Then try again:
+In bash type - npm start
+
+If Still Failing — Check Your .env
+Run this to verify your .env is correct:
+bashtype .env
+Make sure DB_HOST looks exactly like:
+DB_HOST=db.gwfhqapuzmynlqzddgmz.supabase.co
+
+Most Likely Cause
+Possible reasons:
+├── WiFi disconnected or unstable
+├── VPN blocking Supabase
+├── ISP DNS issue (try Google DNS)
+└── Supabase temporary outage
+
 1. Open Docker Desktop     → wait for Engine running
 2. docker-compose up -d    → starts database
 3. npm run dev             → starts API

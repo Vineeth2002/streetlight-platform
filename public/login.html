@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GVMC Streetlight Monitoring System — Authorized Access Only</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+
+body{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:#060d1f;
+  color:#e0e6ff;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  position:relative;
+}
+
+/* Animated city grid background */
+.bg-grid{
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(26,79,160,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26,79,160,0.12) 1px, transparent 1px);
+  background-size:40px 40px;
+  animation:gridMove 20s linear infinite;
+  pointer-events:none;
+}
+@keyframes gridMove{0%{transform:translateY(0)}100%{transform:translateY(40px)}}
+
+/* Glowing orbs */
+.orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;opacity:0.18}
+.orb-1{width:500px;height:500px;background:#1a4fa0;top:-100px;left:-100px;animation:orbFloat 12s ease-in-out infinite}
+.orb-2{width:400px;height:400px;background:#0d3b8c;bottom:-80px;right:-80px;animation:orbFloat 15s ease-in-out infinite reverse}
+.orb-3{width:300px;height:300px;background:#4fc3f7;top:50%;left:50%;transform:translate(-50%,-50%);animation:orbFloat 10s ease-in-out infinite 3s}
+@keyframes orbFloat{
+  0%,100%{transform:translate(0,0)}
+  33%{transform:translate(30px,-20px)}
+  66%{transform:translate(-20px,30px)}
+}
+
+/* Pole silhouettes */
+.poles{position:fixed;bottom:0;left:0;right:0;height:200px;pointer-events:none;opacity:0.12}
+
+/* Main card */
+.card{
+  position:relative;z-index:10;
+  width:100%;max-width:440px;margin:16px;
+  background:rgba(13,20,42,0.85);
+  border:1px solid rgba(79,195,247,0.2);
+  border-radius:16px;
+  backdrop-filter:blur(20px);
+  box-shadow:0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(79,195,247,0.05);
+  overflow:hidden;
+}
+
+/* Header band */
+.card-header{
+  background:linear-gradient(135deg,#0a1628 0%,#0d2150 50%,#0a1628 100%);
+  padding:28px 32px 24px;
+  text-align:center;
+  border-bottom:1px solid rgba(79,195,247,0.15);
+  position:relative;overflow:hidden;
+}
+.card-header::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,#4fc3f7,#ff9933,#4fc3f7,transparent);
+  animation:shimmer 3s ease-in-out infinite;
+}
+@keyframes shimmer{0%,100%{opacity:0.5}50%{opacity:1}}
+
+/* Gov bar inside header */
+.gov-top{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-bottom:16px;
+  padding-bottom:12px;
+  border-bottom:1px solid rgba(255,255,255,0.07);
+}
+.flag{font-size:18px}
+.gov-top-text{text-align:left}
+.gov-top-main{font-size:11px;font-weight:600;color:#ff9933;letter-spacing:0.5px}
+.gov-top-sub{font-size:10px;color:#546e8a;margin-top:1px}
+
+.emblem{
+  width:64px;height:64px;
+  background:linear-gradient(135deg,#1a4fa0,#0d3b8c);
+  border:2px solid rgba(79,195,247,0.4);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 14px;
+  font-size:28px;
+  box-shadow:0 0 24px rgba(79,195,247,0.2);
+  position:relative;
+}
+.emblem::after{
+  content:'';position:absolute;inset:-4px;border-radius:50%;
+  border:1px solid rgba(79,195,247,0.2);
+  animation:spin 8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.org-name{font-size:11px;font-weight:600;letter-spacing:2px;color:#4fc3f7;text-transform:uppercase;margin-bottom:4px}
+.platform-name{font-size:17px;font-weight:700;color:#e0e6ff;margin-bottom:3px}
+.platform-sub{font-size:11px;color:#546e8a;margin-bottom:10px}
+
+.auth-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(255,171,64,0.1);
+  border:1px solid rgba(255,171,64,0.3);
+  border-radius:20px;padding:3px 10px;
+  font-size:10px;color:#ffab40;font-weight:600;letter-spacing:1px;
+}
+
+/* Form area */
+.card-body{padding:24px 32px 20px}
+
+.form-group{margin-bottom:18px}
+
+label{
+  display:block;font-size:11px;font-weight:600;
+  letter-spacing:0.8px;color:#90a4ae;
+  text-transform:uppercase;margin-bottom:7px;
+}
+label .req{color:#ff5252;margin-left:2px}
+
+.input-wrap{position:relative}
+
+.input-wrap svg.field-icon{
+  position:absolute;left:13px;top:50%;
+  transform:translateY(-50%);
+  width:16px;height:16px;
+  stroke:#546e8a;transition:stroke 0.2s;pointer-events:none;
+}
+
+input[type=email],input[type=password]{
+  width:100%;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px;
+  padding:12px 14px 12px 40px;
+  color:#e0e6ff;font-size:14px;outline:none;
+  transition:border-color 0.2s,background 0.2s,box-shadow 0.2s;
+}
+input[type=email]:focus,input[type=password]:focus{
+  border-color:#4fc3f7;
+  background:rgba(79,195,247,0.05);
+  box-shadow:0 0 0 3px rgba(79,195,247,0.1);
+}
+input::placeholder{color:#2a4a6e}
+
+.pw-toggle{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;padding:4px;
+  color:#546e8a;transition:color 0.2s;
+}
+.pw-toggle:hover{color:#4fc3f7}
+
+/* Error message */
+.error-box{
+  display:none;
+  background:rgba(255,82,82,0.1);
+  border:1px solid rgba(255,82,82,0.3);
+  border-radius:8px;padding:10px 14px;
+  font-size:12px;color:#ff5252;
+  margin-bottom:18px;align-items:center;gap:8px;
+}
+.error-box.show{display:flex}
+
+/* Submit button */
+.btn-login{
+  width:100%;
+  background:linear-gradient(135deg,#1a4fa0,#0d3b8c);
+  border:1px solid rgba(79,195,247,0.3);
+  border-radius:8px;padding:13px;
+  color:#fff;font-size:14px;font-weight:600;
+  letter-spacing:0.5px;cursor:pointer;
+  transition:all 0.2s;margin-top:6px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-login:hover{
+  background:linear-gradient(135deg,#1e5ab8,#1040a0);
+  box-shadow:0 4px 20px rgba(26,79,160,0.4);
+  transform:translateY(-1px);
+}
+.btn-login:active{transform:translateY(0)}
+.btn-login:disabled{opacity:0.6;cursor:not-allowed;transform:none}
+.btn-loader{
+  display:none;width:18px;height:18px;
+  border:2px solid rgba(255,255,255,0.3);
+  border-top-color:#fff;border-radius:50%;
+  animation:spin 0.7s linear infinite;
+}
+.btn-login.loading .btn-text{display:none}
+.btn-login.loading .btn-loader{display:block}
+
+/* Helpdesk */
+.helpdesk{
+  margin-top:18px;padding:12px 14px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:8px;font-size:11px;
+}
+.helpdesk-title{font-weight:600;color:#90a4ae;margin-bottom:6px;font-size:11px}
+.helpdesk-row{display:flex;align-items:center;gap:6px;color:#546e8a;margin-top:3px;font-size:11px}
+.helpdesk-row strong{color:#4fc3f7}
+
+/* IT Act warning */
+.warning-notice{
+  padding:12px 20px;
+  background:rgba(255,171,64,0.05);
+  border-top:1px solid rgba(255,171,64,0.15);
+  font-size:10.5px;color:#546e8a;
+  line-height:1.6;text-align:center;
+}
+.warning-notice strong{color:#ffab40}
+
+/* Footer */
+.card-footer{
+  padding:10px 32px;
+  background:rgba(0,0,0,0.2);
+  border-top:1px solid rgba(255,255,255,0.05);
+  text-align:center;font-size:10px;color:#2a4a6e;
+}
+
+/* Pole ticker */
+.pole-ticker{
+  position:fixed;bottom:16px;right:16px;
+  background:rgba(13,20,42,0.9);
+  border:1px solid rgba(79,195,247,0.15);
+  border-radius:8px;padding:8px 12px;
+  font-size:11px;color:#546e8a;z-index:10;
+}
+.pole-ticker span{color:#4fc3f7;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<svg class="poles" viewBox="0 0 1440 200" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">
+  <g fill="#4fc3f7">
+    <rect x="80" y="40" width="4" height="160"/><rect x="60" y="40" width="44" height="6" rx="3"/><circle cx="60" cy="43" r="8"/>
+    <rect x="240" y="60" width="4" height="140"/><rect x="220" y="60" width="44" height="6" rx="3"/><circle cx="220" cy="63" r="8"/>
+    <rect x="440" y="30" width="4" height="170"/><rect x="420" y="30" width="44" height="6" rx="3"/><circle cx="420" cy="33" r="8"/>
+    <rect x="640" y="50" width="4" height="150"/><rect x="620" y="50" width="44" height="6" rx="3"/><circle cx="620" cy="53" r="8"/>
+    <rect x="840" y="35" width="4" height="165"/><rect x="820" y="35" width="44" height="6" rx="3"/><circle cx="820" cy="38" r="8"/>
+    <rect x="1040" y="55" width="4" height="145"/><rect x="1020" y="55" width="44" height="6" rx="3"/><circle cx="1020" cy="58" r="8"/>
+    <rect x="1240" y="45" width="4" height="155"/><rect x="1220" y="45" width="44" height="6" rx="3"/><circle cx="1220" cy="48" r="8"/>
+    <rect x="1400" y="65" width="4" height="135"/><rect x="1380" y="65" width="44" height="6" rx="3"/><circle cx="1380" cy="68" r="8"/>
+  </g>
+  <rect x="0" y="195" width="1440" height="5" fill="#1e3a5f" opacity="0.5"/>
+</svg>
+
+<div class="card">
+  <div class="card-header">
+
+    <!-- Government of AP bar inside header -->
+    <div class="gov-top">
+      <div class="flag">🇮🇳</div>
+      <div class="gov-top-text">
+        <div class="gov-top-main">Government of Andhra Pradesh</div>
+        <div class="gov-top-sub">Municipal Administration &amp; Urban Development Dept.</div>
+      </div>
+    </div>
+
+    <div class="emblem">🏛️</div>
+    <div class="org-name">Greater Visakhapatnam Municipal Corporation</div>
+    <div class="platform-name">Streetlight Monitoring System</div>
+    <div class="platform-sub">Integrated Command &amp; Control Platform</div>
+    <div class="auth-badge">⚠ Authorized Personnel Only</div>
+  </div>
+
+  <div class="card-body">
+
+    <div class="error-box" id="error-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span id="error-text"></span>
+    </div>
+
+    <div class="form-group">
+      <label>Official Email Address <span class="req">*</span></label>
+      <div class="input-wrap">
+        <input type="email" id="email" placeholder="username@gvmc.gov.in" autocomplete="email" autofocus/>
+        <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Password <span class="req">*</span></label>
+      <div class="input-wrap">
+        <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password"/>
+        <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <button class="pw-toggle" type="button" onclick="togglePw()" title="Show/hide password">
+          <svg id="pw-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-login" id="btn-login" onclick="doLogin()">
+      <span class="btn-text">Sign In to Command Center</span>
+      <div class="btn-loader"></div>
+    </button>
+
+    <div class="helpdesk">
+      <div class="helpdesk-title">🛟 Forgot password or need access?</div>
+      <div class="helpdesk-row">📞 GVMC IT Helpdesk: <strong>0891-2755555</strong></div>
+      <div class="helpdesk-row">✉ Email: <strong>ithelpdesk@gvmc.gov.in</strong></div>
+      <div class="helpdesk-row" style="margin-top:4px;font-size:10px">Working hours: Mon–Sat, 9:00 AM – 6:00 PM</div>
+    </div>
+
+  </div>
+
+  <div class="warning-notice">
+    <strong>NOTICE:</strong> This system is for authorized GVMC personnel only.
+    Unauthorized access is a punishable offence under
+    <strong>Information Technology Act, 2000.</strong>
+    All activities are monitored and logged.
+  </div>
+
+  <div class="card-footer">
+    Government of Andhra Pradesh &nbsp;·&nbsp; GVMC Smart City Mission &nbsp;·&nbsp; v1.0.0
+  </div>
+</div>
+
+<div class="pole-ticker">
+  Monitoring <span>2,00,000</span> poles across Visakhapatnam
+</div>
+
+<script>
+function togglePw(){
+  const pw=document.getElementById('password');
+  const icon=document.getElementById('pw-icon');
+  if(pw.type==='password'){
+    pw.type='text';
+    icon.innerHTML=`<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`;
+  } else {
+    pw.type='password';
+    icon.innerHTML=`<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+  }
+}
+
+function showError(msg){
+  const box=document.getElementById('error-box');
+  document.getElementById('error-text').textContent=msg;
+  box.classList.add('show');
+}
+
+function hideError(){
+  document.getElementById('error-box').classList.remove('show');
+}
+
+async function doLogin(){
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  const btn=document.getElementById('btn-login');
+  hideError();
+  if(!email){showError('Please enter your official email address.');return;}
+  if(!password){showError('Please enter your password.');return;}
+  btn.classList.add('loading');btn.disabled=true;
+  try{
+    const res=await fetch('/api/v1/auth/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password}),
+    });
+    const data=await res.json();
+    if(!data.ok){
+      showError(data.error||'Invalid credentials. Please contact IT Helpdesk.');
+      return;
+    }
+    localStorage.setItem('sl_token',data.token);
+    localStorage.setItem('sl_refresh',data.refresh_token);
+    localStorage.setItem('sl_user',JSON.stringify(data.user));
+    localStorage.setItem('sl_role',data.user.role);
+    const role = data.user.role;
+    if(role === 'FIELD_ENGINEER'){
+      window.location.href = '/field.html';
+    } else if(role === 'CONTRACTOR'){
+      window.location.href = '/contractor.html';
+    } else if(role === 'GVMC_EE'){
+      window.location.href = '/ee-dashboard.html';
+    } else {
+      window.location.href = '/index.html';
+    }
+  } catch(err){
+    showError('Unable to connect to server. Please contact IT Helpdesk.');
+  } finally {
+    btn.classList.remove('loading');btn.disabled=false;
+  }
+}
+
+document.addEventListener('keypress',e=>{if(e.key==='Enter')doLogin();});
+if(localStorage.getItem('sl_token')){
+  const role = localStorage.getItem('sl_role');
+  if(role === 'FIELD_ENGINEER') window.location.href='/field.html';
+  else if(role === 'CONTRACTOR') window.location.href='/contractor.html';
+  else if(role === 'GVMC_EE') window.location.href='/ee-dashboard.html';
+  else window.location.href='/index.html';
+}
+</script>
+</body>
+</html>

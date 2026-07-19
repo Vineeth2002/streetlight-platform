@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GVMC — Contractor Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;min-height:100vh}
+
+.topbar{background:#00529c;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar-logo{width:36px;height:36px;background:rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px}
+.topbar-title{color:#fff;font-size:15px;font-weight:700}
+.topbar-sub{color:rgba(255,255,255,0.7);font-size:11px;margin-top:1px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.user-chip{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:5px 12px;color:#fff;font-size:11px;font-weight:600}
+.btn-signout{background:rgba(255,82,82,0.2);border:1px solid rgba(255,82,82,0.4);color:#ffcdd2;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600}
+.btn-signout:hover{background:rgba(255,82,82,0.4)}
+.gov-accent{height:3px;background:linear-gradient(90deg,#ff6600,#ff9933,#ff6600)}
+
+.main{max-width:1100px;margin:0 auto;padding:20px 16px}
+
+/* KPI CARDS */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border:1px solid #dde3ec;border-radius:10px;padding:16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.kpi-val{font-size:26px;font-weight:700;margin-bottom:4px}
+.kpi-lbl{font-size:11px;color:#666}
+.kpi-blue{color:#00529c}
+.kpi-green{color:#198754}
+.kpi-red{color:#dc3545}
+.kpi-amber{color:#ff8800}
+
+/* SECTION */
+.section-title{font-size:13px;font-weight:700;color:#00529c;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e9ecef;display:flex;align-items:center;gap:6px}
+
+/* PENALTY CARD */
+.penalty-card{background:#fff;border:1px solid #dde3ec;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.penalty-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:12px}
+.penalty-item{text-align:center;padding:14px;background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef}
+.penalty-amount{font-size:20px;font-weight:700;margin-bottom:4px}
+.penalty-label{font-size:11px;color:#666}
+
+/* CHART */
+.chart-card{background:#fff;border:1px solid #dde3ec;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+
+/* TABLE */
+.table-card{background:#fff;border:1px solid #dde3ec;border-radius:10px;overflow:hidden;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.table-header{padding:14px 20px;border-bottom:1px solid #e9ecef;display:flex;align-items:center;justify-content:space-between}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f8f9fa;color:#444;padding:10px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.4px;border-bottom:1px solid #e9ecef;white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid #f0f2f5;color:#333}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8f9fa}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.badge-pending{background:#fff3e0;color:#ff8800}
+.badge-progress{background:#e8f0fe;color:#00529c}
+.badge-resolved{background:#e8f5e9;color:#198754}
+.badge-violated{background:#fde8e8;color:#dc3545}
+
+/* SLA BAR */
+.sla-bar-wrap{height:6px;background:#e9ecef;border-radius:3px;margin-top:4px}
+.sla-bar-fill{height:6px;border-radius:3px}
+
+/* NOTICE */
+.notice{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;font-size:12px;color:#5d4037;margin-bottom:20px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">🏗️</div>
+    <div>
+      <div class="topbar-title">Contractor Portal</div>
+      <div class="topbar-sub">GVMC Streetlight O&M Dashboard</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="user-chip" id="user-chip">Contractor</div>
+    <button class="btn-signout" onclick="doLogout()">🔓 Sign Out</button>
+  </div>
+</div>
+<div class="gov-accent"></div>
+
+<div class="main">
+
+  <div class="notice">
+    📋 <strong>Notice:</strong> This portal shows your assigned zone work orders, SLA compliance, and penalty calculations. All data is monitored by GVMC. Contact your zone EE for disputes.
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-val kpi-blue" id="kpi-total">0</div>
+      <div class="kpi-lbl">Total Work Orders</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val kpi-amber" id="kpi-pending">0</div>
+      <div class="kpi-lbl">⏳ Pending / Active</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val kpi-green" id="kpi-resolved">0</div>
+      <div class="kpi-lbl">✅ Resolved</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val kpi-red" id="kpi-violated">0</div>
+      <div class="kpi-lbl">🚨 SLA Violated</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val kpi-green" id="kpi-glow">—</div>
+      <div class="kpi-lbl">Zone Glow Rate</div>
+    </div>
+  </div>
+
+  <!-- Penalty Summary -->
+  <div class="penalty-card">
+    <div class="section-title">💰 Monthly Billing Summary</div>
+    <div class="penalty-grid">
+      <div class="penalty-item">
+        <div class="penalty-amount kpi-blue" id="bill-invoice">₹0</div>
+        <div class="penalty-label">Monthly Invoice Base</div>
+      </div>
+      <div class="penalty-item">
+        <div class="penalty-amount kpi-red" id="bill-penalty">₹0</div>
+        <div class="penalty-label">Total Penalty MTD</div>
+      </div>
+      <div class="penalty-item">
+        <div class="penalty-amount kpi-green" id="bill-net">₹0</div>
+        <div class="penalty-label">Net Payable</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLA Chart -->
+  <div class="chart-card">
+    <div class="section-title">📊 SLA Compliance — This Month</div>
+    <div style="position:relative;height:200px">
+      <canvas id="slaChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Work Orders Table -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="section-title" style="margin:0;border:none;padding:0">📋 Work Orders</div>
+      <div style="font-size:11px;color:#666" id="wo-count">Loading...</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Work Order</th>
+            <th>Pole ID</th>
+            <th>Fault</th>
+            <th>Reported</th>
+            <th>SLA Deadline</th>
+            <th>Status</th>
+            <th>Penalty ₹</th>
+          </tr>
+        </thead>
+        <tbody id="wo-tbody">
+          <tr><td colspan="7" style="text-align:center;padding:30px;color:#999">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── AUTH GUARD ───────────────────────────────────────────────────────────────
+const token   = localStorage.getItem('sl_token');
+const userStr = localStorage.getItem('sl_user');
+if(!token||!userStr){ window.location.href='/login.html'; }
+const CURRENT_USER = JSON.parse(userStr||'{}');
+if(!['CONTRACTOR','SUPER_ADMIN'].includes(CURRENT_USER.role)){
+  window.location.href='/index.html';
+}
+document.getElementById('user-chip').textContent = CURRENT_USER.full_name || 'Contractor';
+
+// ─── DEMO DATA ────────────────────────────────────────────────────────────────
+const DEMO_WO = [
+  {work_order_id:2001,pole_number:'VSP-N-00142',fault_category:'DRIVER_FAULT',reported_timestamp:new Date(Date.now()-50*3600000).toISOString(),sla_deadline:new Date(Date.now()-2*3600000).toISOString(),ticket_status:'SLA_VIOLATED',penalty_deducted:750},
+  {work_order_id:2002,pole_number:'VSP-N-00891',fault_category:'CABLE_THEFT',reported_timestamp:new Date(Date.now()-20*3600000).toISOString(),sla_deadline:new Date(Date.now()+28*3600000).toISOString(),ticket_status:'IN_PROGRESS',penalty_deducted:0},
+  {work_order_id:2003,pole_number:'VSP-N-01234',fault_category:'DAY_BURNING_FAULT',reported_timestamp:new Date(Date.now()-10*3600000).toISOString(),sla_deadline:new Date(Date.now()+38*3600000).toISOString(),ticket_status:'ASSIGNED',penalty_deducted:0},
+  {work_order_id:2004,pole_number:'VSP-N-00445',fault_category:'LINE_FAULT',reported_timestamp:new Date(Date.now()-72*3600000).toISOString(),sla_deadline:new Date(Date.now()-24*3600000).toISOString(),ticket_status:'RESOLVED',penalty_deducted:1500},
+  {work_order_id:2005,pole_number:'VSP-N-00678',fault_category:'CABINET_FAULT',reported_timestamp:new Date(Date.now()-5*3600000).toISOString(),sla_deadline:new Date(Date.now()+43*3600000).toISOString(),ticket_status:'PENDING',penalty_deducted:0},
+];
+
+const FAULT_LABELS={
+  'DRIVER_FAULT':'Driver Board Failure',
+  'LINE_FAULT':'Cable Short Circuit',
+  'DAY_BURNING_FAULT':'Day Burning',
+  'PREDICTIVE_DEGRADATION':'PCB Degradation',
+  'CABLE_THEFT':'Cable Theft',
+  'CABINET_FAULT':'CCMS Box Failure',
+  'PHYSICAL_DAMAGE':'Physical Damage',
+  'MANUAL_REPORT':'Manual Report',
+};
+
+const CONTRACTOR_INFO = {
+  monthly_invoice_base: 4200000,
+  target_glow_rate: 98.0,
+  zone_name: 'North Zone',
+};
+
+// ─── LOAD DATA ────────────────────────────────────────────────────────────────
+async function loadData(){
+  let workOrders = [];
+  try {
+    const res = await fetch('/api/v1/work-orders?limit=100', {
+      headers:{'Authorization':'Bearer '+token}
+    });
+    const data = await res.json();
+    workOrders = data.ok && data.data?.length ? data.data : DEMO_WO;
+  } catch(e){ workOrders = DEMO_WO; }
+
+  // Zone glow
+  let glowRate = '97.8%';
+  try {
+    const res = await fetch('/api/v1/poles/zones',{headers:{'Authorization':'Bearer '+token}});
+    const data = await res.json();
+    if(data.ok && data.zones?.length){
+      const zone = data.zones.find(z=>z.zone_name===CONTRACTOR_INFO.zone_name);
+      if(zone && zone.glow_rate_pct) glowRate = zone.glow_rate_pct+'%';
+    }
+  } catch(e){}
+
+  renderKPIs(workOrders, glowRate);
+  renderBilling(workOrders);
+  renderTable(workOrders);
+  renderChart(workOrders);
+}
+
+function renderKPIs(wos, glow){
+  const pending   = wos.filter(w=>['PENDING','ASSIGNED','IN_PROGRESS'].includes(w.ticket_status)).length;
+  const resolved  = wos.filter(w=>w.ticket_status==='RESOLVED').length;
+  const violated  = wos.filter(w=>w.ticket_status==='SLA_VIOLATED').length;
+  document.getElementById('kpi-total').textContent    = wos.length;
+  document.getElementById('kpi-pending').textContent  = pending;
+  document.getElementById('kpi-resolved').textContent = resolved;
+  document.getElementById('kpi-violated').textContent = violated;
+  document.getElementById('kpi-glow').textContent     = glow;
+  document.getElementById('kpi-glow').className       =
+    'kpi-val ' + (parseFloat(glow)>=98?'kpi-green':parseFloat(glow)>=96?'kpi-amber':'kpi-red');
+}
+
+function renderBilling(wos){
+  const totalPenalty = wos.reduce((s,w)=>s+(parseFloat(w.penalty_deducted)||0),0);
+  const invoice      = CONTRACTOR_INFO.monthly_invoice_base;
+  const net          = invoice - totalPenalty;
+  document.getElementById('bill-invoice').textContent = '₹'+invoice.toLocaleString('en-IN');
+  document.getElementById('bill-penalty').textContent = '₹'+totalPenalty.toLocaleString('en-IN');
+  document.getElementById('bill-net').textContent     = '₹'+Math.max(0,net).toLocaleString('en-IN');
+}
+
+function renderTable(wos){
+  document.getElementById('wo-count').textContent = wos.length+' records';
+  const statusBadge = {
+    'PENDING':     '<span class="badge badge-pending">PENDING</span>',
+    'ASSIGNED':    '<span class="badge badge-pending">ASSIGNED</span>',
+    'IN_PROGRESS': '<span class="badge badge-progress">IN PROGRESS</span>',
+    'RESOLVED':    '<span class="badge badge-resolved">RESOLVED</span>',
+    'SLA_VIOLATED':'<span class="badge badge-violated">SLA VIOLATED</span>',
+    'CANCELLED':   '<span class="badge" style="background:#e9ecef;color:#666">CANCELLED</span>',
+  };
+  document.getElementById('wo-tbody').innerHTML = wos.slice(0,50).map(w=>{
+    const reported = new Date(w.reported_timestamp).toLocaleDateString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    const deadline = new Date(w.sla_deadline||Date.now()).toLocaleDateString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    const penalty  = parseFloat(w.penalty_deducted)||0;
+    return `<tr>
+      <td style="font-weight:600;color:#00529c">#${w.work_order_id}</td>
+      <td style="font-weight:600">${w.pole_number||'—'}</td>
+      <td>${FAULT_LABELS[w.fault_category]||w.fault_category}</td>
+      <td style="font-size:11px;color:#666">${reported}</td>
+      <td style="font-size:11px;color:#666">${deadline}</td>
+      <td>${statusBadge[w.ticket_status]||w.ticket_status}</td>
+      <td style="font-weight:700;color:${penalty>0?'#dc3545':'#198754'}">${penalty>0?'₹'+penalty.toLocaleString('en-IN'):'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderChart(wos){
+  const resolved  = wos.filter(w=>w.ticket_status==='RESOLVED').length;
+  const violated  = wos.filter(w=>w.ticket_status==='SLA_VIOLATED').length;
+  const inprog    = wos.filter(w=>['PENDING','ASSIGNED','IN_PROGRESS'].includes(w.ticket_status)).length;
+  new Chart(document.getElementById('slaChart'),{
+    type:'doughnut',
+    data:{
+      labels:['Resolved on Time','SLA Violated','In Progress'],
+      datasets:[{
+        data:[resolved,violated,inprog],
+        backgroundColor:['#198754','#dc3545','#ff8800'],
+        borderWidth:0,
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12}}}
+    }
+  });
+}
+
+function doLogout(){
+  const refresh=localStorage.getItem('sl_refresh');
+  fetch('/api/v1/auth/logout',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({refresh_token:refresh})})
+  .finally(()=>{localStorage.clear();window.location.href='/login.html';});
+}
+
+loadData();
+</script>
+</body>
+</html>
