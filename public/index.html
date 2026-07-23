@@ -1310,14 +1310,17 @@ function doLogout(){
   if(!confirm('Are you sure you want to sign out?')) return;
   const token   = localStorage.getItem('sl_token');
   const refresh = localStorage.getItem('sl_refresh');
-  fetch('/api/v1/auth/logout',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-    body:JSON.stringify({refresh_token:refresh}),
-  }).finally(()=>{
-    localStorage.clear();
-    window.location.href='/login.html';
-  });
+  // Always clear and redirect regardless of API response
+  localStorage.clear();
+  sessionStorage.clear();
+  try {
+    fetch('/api/v1/auth/logout',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({refresh_token:refresh}),
+    }).catch(()=>{});
+  } catch(e){}
+  window.location.href='/login.html';
 }
 
 (function(){
