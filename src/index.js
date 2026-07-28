@@ -32,13 +32,15 @@ const TOTAL_POLES = parseInt(process.env.TOTAL_POLES) || 200000;
 
 // ─── Express app ──────────────────────────────────────────────────────────────
 const app = express();
+// Trust Render's proxy
+app.set('trust proxy', 1);
 
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:  ["'self'"],
-      scriptSrc:   ["'self'", "'unsafe-inline'", 'cdn.jsdelivr.net'],
+      scriptSrc:  ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'cdn.jsdelivr.net'],
       styleSrc:    ["'self'", "'unsafe-inline'", 'cdn.jsdelivr.net'],
       imgSrc:      ["'self'", 'data:', '*.openstreetmap.org', '*.tile.openstreetmap.org'],
       connectSrc:  ["'self'", 'ws:', 'wss:'],
