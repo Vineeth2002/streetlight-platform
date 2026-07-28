@@ -6,7 +6,6 @@
 <title>GVMC Streetlight Monitoring System — Authorized Access Only</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-
 body{
   font-family:'Segoe UI',system-ui,sans-serif;
   background:#060d1f;
@@ -18,51 +17,39 @@ body{
   overflow:hidden;
   position:relative;
 }
-
-/* Animated city grid background */
 .bg-grid{
   position:fixed;inset:0;
-  background-image:
-    linear-gradient(rgba(26,79,160,0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(26,79,160,0.12) 1px, transparent 1px);
+  background-image:linear-gradient(rgba(26,79,160,0.12) 1px,transparent 1px),linear-gradient(90deg,rgba(26,79,160,0.12) 1px,transparent 1px);
   background-size:40px 40px;
   animation:gridMove 20s linear infinite;
   pointer-events:none;
 }
 @keyframes gridMove{0%{transform:translateY(0)}100%{transform:translateY(40px)}}
-
-/* Glowing orbs */
-.orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;opacity:0.18}
+.orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;opacity:0.15}
 .orb-1{width:500px;height:500px;background:#1a4fa0;top:-100px;left:-100px;animation:orbFloat 12s ease-in-out infinite}
 .orb-2{width:400px;height:400px;background:#0d3b8c;bottom:-80px;right:-80px;animation:orbFloat 15s ease-in-out infinite reverse}
 .orb-3{width:300px;height:300px;background:#4fc3f7;top:50%;left:50%;transform:translate(-50%,-50%);animation:orbFloat 10s ease-in-out infinite 3s}
-@keyframes orbFloat{
-  0%,100%{transform:translate(0,0)}
-  33%{transform:translate(30px,-20px)}
-  66%{transform:translate(-20px,30px)}
-}
+@keyframes orbFloat{0%,100%{transform:translate(0,0)}33%{transform:translate(30px,-20px)}66%{transform:translate(-20px,30px)}}
+.poles{position:fixed;bottom:0;left:0;right:0;height:200px;pointer-events:none;opacity:0.1}
 
-/* Pole silhouettes */
-.poles{position:fixed;bottom:0;left:0;right:0;height:200px;pointer-events:none;opacity:0.12}
-
-/* Main card */
+/* CARD */
 .card{
   position:relative;z-index:10;
   width:100%;max-width:440px;margin:16px;
-  background:rgba(13,20,42,0.85);
+  background:rgba(10,16,35,0.92);
   border:1px solid rgba(79,195,247,0.2);
   border-radius:16px;
-  backdrop-filter:blur(20px);
-  box-shadow:0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(79,195,247,0.05);
+  backdrop-filter:blur(24px);
+  box-shadow:0 24px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(79,195,247,0.05);
   overflow:hidden;
 }
 
-/* Header band */
+/* HEADER */
 .card-header{
-  background:linear-gradient(135deg,#0a1628 0%,#0d2150 50%,#0a1628 100%);
-  padding:28px 32px 24px;
+  background:linear-gradient(135deg,#080e20 0%,#0b1a42 50%,#080e20 100%);
+  padding:24px 32px 20px;
   text-align:center;
-  border-bottom:1px solid rgba(79,195,247,0.15);
+  border-bottom:1px solid rgba(79,195,247,0.12);
   position:relative;overflow:hidden;
 }
 .card-header::before{
@@ -71,124 +58,159 @@ body{
   animation:shimmer 3s ease-in-out infinite;
 }
 @keyframes shimmer{0%,100%{opacity:0.5}50%{opacity:1}}
-
-/* Gov bar inside header */
-.gov-top{
-  display:flex;align-items:center;justify-content:center;gap:8px;
-  margin-bottom:16px;
-  padding-bottom:12px;
-  border-bottom:1px solid rgba(255,255,255,0.07);
-}
+.gov-top{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06)}
 .flag{font-size:18px}
-.gov-top-text{text-align:left}
 .gov-top-main{font-size:11px;font-weight:600;color:#ff9933;letter-spacing:0.5px}
 .gov-top-sub{font-size:10px;color:#546e8a;margin-top:1px}
-
 .emblem{
-  width:64px;height:64px;
+  width:60px;height:60px;
   background:linear-gradient(135deg,#1a4fa0,#0d3b8c);
-  border:2px solid rgba(79,195,247,0.4);
+  border:2px solid rgba(79,195,247,0.35);
   border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  margin:0 auto 14px;
-  font-size:28px;
-  box-shadow:0 0 24px rgba(79,195,247,0.2);
+  margin:0 auto 12px;font-size:26px;
+  box-shadow:0 0 24px rgba(79,195,247,0.15);
   position:relative;
 }
 .emblem::after{
   content:'';position:absolute;inset:-4px;border-radius:50%;
-  border:1px solid rgba(79,195,247,0.2);
-  animation:spin 8s linear infinite;
+  border:1px solid rgba(79,195,247,0.15);
+  animation:spin 10s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
-
-.org-name{font-size:11px;font-weight:600;letter-spacing:2px;color:#4fc3f7;text-transform:uppercase;margin-bottom:4px}
-.platform-name{font-size:17px;font-weight:700;color:#e0e6ff;margin-bottom:3px}
+.org-name{font-size:10px;font-weight:600;letter-spacing:2px;color:#4fc3f7;text-transform:uppercase;margin-bottom:3px}
+.platform-name{font-size:16px;font-weight:700;color:#e0e6ff;margin-bottom:2px}
 .platform-sub{font-size:11px;color:#546e8a;margin-bottom:10px}
-
 .auth-badge{
   display:inline-flex;align-items:center;gap:5px;
-  background:rgba(255,171,64,0.1);
-  border:1px solid rgba(255,171,64,0.3);
+  background:rgba(255,171,64,0.08);
+  border:1px solid rgba(255,171,64,0.25);
   border-radius:20px;padding:3px 10px;
   font-size:10px;color:#ffab40;font-weight:600;letter-spacing:1px;
 }
 
-/* Form area */
-.card-body{padding:24px 32px 20px}
+/* BODY */
+.card-body{padding:22px 28px 18px}
 
-.form-group{margin-bottom:18px}
+.error-box{
+  display:none;
+  background:rgba(255,82,82,0.08);
+  border:1px solid rgba(255,82,82,0.25);
+  border-left:3px solid #ff5252;
+  border-radius:6px;
+  padding:10px 14px;font-size:12px;color:#ff5252;
+  margin-bottom:16px;align-items:center;gap:8px;
+}
+.error-box.show{display:flex}
 
+.form-group{margin-bottom:16px}
 label{
-  display:block;font-size:11px;font-weight:600;
+  display:block;font-size:10px;font-weight:600;
   letter-spacing:0.8px;color:#90a4ae;
-  text-transform:uppercase;margin-bottom:7px;
+  text-transform:uppercase;margin-bottom:6px;
 }
 label .req{color:#ff5252;margin-left:2px}
 
 .input-wrap{position:relative}
 
-.input-wrap svg.field-icon{
-  position:absolute;left:13px;top:50%;
-  transform:translateY(-50%);
-  width:16px;height:16px;
-  stroke:#546e8a;transition:stroke 0.2s;pointer-events:none;
-}
-
-input[type=email],input[type=password]{
+/* FIXED INPUT STYLES */
+input[type=email],
+input[type=password],
+input[type=text]{
   width:100%;
-  background:rgba(255,255,255,0.04);
+  background:rgba(255,255,255,0.04) !important;
   border:1px solid rgba(255,255,255,0.1);
   border-radius:8px;
-  padding:12px 14px 12px 40px;
-  color:#e0e6ff;font-size:14px;outline:none;
-  transition:border-color 0.2s,background 0.2s,box-shadow 0.2s;
+  padding:11px 14px 11px 40px;
+  color:#e0e6ff !important;
+  font-size:14px;
+  outline:none;
+  transition:border-color 0.2s,box-shadow 0.2s;
+  -webkit-text-fill-color:#e0e6ff !important;
 }
-input[type=email]:focus,input[type=password]:focus{
+input[type=email]:focus,
+input[type=password]:focus,
+input[type=text]:focus{
   border-color:#4fc3f7;
-  background:rgba(79,195,247,0.05);
-  box-shadow:0 0 0 3px rgba(79,195,247,0.1);
+  background:rgba(79,195,247,0.04) !important;
+  box-shadow:0 0 0 3px rgba(79,195,247,0.08);
 }
-input::placeholder{color:#2a4a6e}
+input::placeholder{color:#2a4a6e;-webkit-text-fill-color:#2a4a6e !important}
 
+/* Fix browser autofill overriding dark background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active{
+  -webkit-box-shadow:0 0 0 30px #0a1022 inset !important;
+  -webkit-text-fill-color:#e0e6ff !important;
+  caret-color:#e0e6ff;
+  border-color:rgba(255,255,255,0.1) !important;
+  transition:background-color 9999s ease-in-out 0s;
+}
+
+/* Field icon */
+.field-icon{
+  position:absolute;left:13px;top:50%;
+  transform:translateY(-50%);
+  width:15px;height:15px;
+  stroke:#546e8a;
+  pointer-events:none;
+  transition:stroke 0.2s;
+  z-index:1;
+}
+input:focus ~ .field-icon{stroke:#4fc3f7}
+
+/* Eye toggle - FIXED */
 .pw-toggle{
-  position:absolute;right:12px;top:50%;transform:translateY(-50%);
-  background:none;border:none;cursor:pointer;padding:4px;
-  color:#546e8a;transition:color 0.2s;
+  position:absolute;
+  right:11px;top:50%;
+  transform:translateY(-50%);
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
+  cursor:pointer;
+  padding:4px;
+  color:#546e8a;
+  transition:color 0.2s;
+  display:flex;align-items:center;justify-content:center;
+  z-index:2;
+  line-height:1;
 }
 .pw-toggle:hover{color:#4fc3f7}
-
-/* Error message */
-.error-box{
-  display:none;
-  background:rgba(255,82,82,0.1);
-  border:1px solid rgba(255,82,82,0.3);
-  border-radius:8px;padding:10px 14px;
-  font-size:12px;color:#ff5252;
-  margin-bottom:18px;align-items:center;gap:8px;
+.pw-toggle:focus{outline:none}
+.pw-toggle svg{
+  width:16px;height:16px;
+  stroke:currentColor;
+  fill:none;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  display:block;
 }
-.error-box.show{display:flex}
 
-/* Submit button */
+/* BUTTON */
 .btn-login{
   width:100%;
   background:linear-gradient(135deg,#1a4fa0,#0d3b8c);
-  border:1px solid rgba(79,195,247,0.3);
-  border-radius:8px;padding:13px;
+  border:1px solid rgba(79,195,247,0.25);
+  border-radius:8px;
+  padding:12px;
   color:#fff;font-size:14px;font-weight:600;
   letter-spacing:0.5px;cursor:pointer;
-  transition:all 0.2s;margin-top:6px;
+  transition:all 0.2s;
   display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-top:4px;
 }
 .btn-login:hover{
   background:linear-gradient(135deg,#1e5ab8,#1040a0);
-  box-shadow:0 4px 20px rgba(26,79,160,0.4);
+  box-shadow:0 4px 20px rgba(26,79,160,0.35);
   transform:translateY(-1px);
 }
 .btn-login:active{transform:translateY(0)}
 .btn-login:disabled{opacity:0.6;cursor:not-allowed;transform:none}
 .btn-loader{
-  display:none;width:18px;height:18px;
+  display:none;width:16px;height:16px;
   border:2px solid rgba(255,255,255,0.3);
   border-top-color:#fff;border-radius:50%;
   animation:spin 0.7s linear infinite;
@@ -196,48 +218,47 @@ input::placeholder{color:#2a4a6e}
 .btn-login.loading .btn-text{display:none}
 .btn-login.loading .btn-loader{display:block}
 
-/* Helpdesk */
+/* HELPDESK */
 .helpdesk{
-  margin-top:18px;padding:12px 14px;
-  background:rgba(255,255,255,0.03);
-  border:1px solid rgba(255,255,255,0.07);
+  margin-top:16px;padding:11px 14px;
+  background:rgba(255,255,255,0.02);
+  border:1px solid rgba(255,255,255,0.06);
   border-radius:8px;font-size:11px;
 }
-.helpdesk-title{font-weight:600;color:#90a4ae;margin-bottom:6px;font-size:11px}
-.helpdesk-row{display:flex;align-items:center;gap:6px;color:#546e8a;margin-top:3px;font-size:11px}
+.helpdesk-title{font-weight:600;color:#90a4ae;margin-bottom:5px}
+.helpdesk-row{display:flex;align-items:center;gap:6px;color:#546e8a;margin-top:3px}
 .helpdesk-row strong{color:#4fc3f7}
 
-/* IT Act warning */
+/* WARNING */
 .warning-notice{
-  padding:12px 20px;
-  background:rgba(255,171,64,0.05);
-  border-top:1px solid rgba(255,171,64,0.15);
+  padding:11px 20px;
+  background:rgba(255,171,64,0.04);
+  border-top:1px solid rgba(255,171,64,0.12);
   font-size:10.5px;color:#546e8a;
   line-height:1.6;text-align:center;
 }
 .warning-notice strong{color:#ffab40}
 
-/* Footer */
+/* FOOTER */
 .card-footer{
-  padding:10px 32px;
-  background:rgba(0,0,0,0.2);
-  border-top:1px solid rgba(255,255,255,0.05);
+  padding:9px 28px;
+  background:rgba(0,0,0,0.25);
+  border-top:1px solid rgba(255,255,255,0.04);
   text-align:center;font-size:10px;color:#2a4a6e;
 }
 
-/* Pole ticker */
+/* POLE TICKER */
 .pole-ticker{
-  position:fixed;bottom:16px;right:16px;
-  background:rgba(13,20,42,0.9);
-  border:1px solid rgba(79,195,247,0.15);
-  border-radius:8px;padding:8px 12px;
+  position:fixed;bottom:14px;right:14px;
+  background:rgba(10,16,35,0.9);
+  border:1px solid rgba(79,195,247,0.12);
+  border-radius:8px;padding:7px 11px;
   font-size:11px;color:#546e8a;z-index:10;
 }
 .pole-ticker span{color:#4fc3f7;font-weight:700}
 </style>
 </head>
 <body>
-
 <div class="bg-grid"></div>
 <div class="orb orb-1"></div>
 <div class="orb orb-2"></div>
@@ -259,16 +280,13 @@ input::placeholder{color:#2a4a6e}
 
 <div class="card">
   <div class="card-header">
-
-    <!-- Government of AP bar inside header -->
     <div class="gov-top">
       <div class="flag">🇮🇳</div>
-      <div class="gov-top-text">
+      <div>
         <div class="gov-top-main">Government of Andhra Pradesh</div>
         <div class="gov-top-sub">Municipal Administration &amp; Urban Development Dept.</div>
       </div>
     </div>
-
     <div class="emblem">🏛️</div>
     <div class="org-name">Greater Visakhapatnam Municipal Corporation</div>
     <div class="platform-name">Streetlight Monitoring System</div>
@@ -277,9 +295,8 @@ input::placeholder{color:#2a4a6e}
   </div>
 
   <div class="card-body">
-
     <div class="error-box" id="error-box">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="flex-shrink:0">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <span id="error-text"></span>
@@ -304,8 +321,8 @@ input::placeholder{color:#2a4a6e}
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
           <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
         </svg>
-        <button class="pw-toggle" type="button" onclick="togglePw()" title="Show/hide password">
-          <svg id="pw-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+        <button class="pw-toggle" type="button" id="pw-btn" title="Show/hide password">
+          <svg id="pw-icon" viewBox="0 0 24 24">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
             <circle cx="12" cy="12" r="3"/>
           </svg>
@@ -313,7 +330,7 @@ input::placeholder{color:#2a4a6e}
       </div>
     </div>
 
-    <button class="btn-login" id="btn-login" onclick="doLogin()">
+    <button class="btn-login" id="btn-login">
       <span class="btn-text">Sign In to Command Center</span>
       <div class="btn-loader"></div>
     </button>
@@ -324,7 +341,6 @@ input::placeholder{color:#2a4a6e}
       <div class="helpdesk-row">✉ Email: <strong>ithelpdesk@gvmc.gov.in</strong></div>
       <div class="helpdesk-row" style="margin-top:4px;font-size:10px">Working hours: Mon–Sat, 9:00 AM – 6:00 PM</div>
     </div>
-
   </div>
 
   <div class="warning-notice">
@@ -333,87 +349,81 @@ input::placeholder{color:#2a4a6e}
     <strong>Information Technology Act, 2000.</strong>
     All activities are monitored and logged.
   </div>
-
   <div class="card-footer">
     Government of Andhra Pradesh &nbsp;·&nbsp; GVMC Smart City Mission &nbsp;·&nbsp; v1.0.0
   </div>
 </div>
 
-<div class="pole-ticker">
-  Monitoring <span>2,00,000</span> poles across Visakhapatnam
-</div>
+<div class="pole-ticker">Monitoring <span>2,00,000</span> poles across Visakhapatnam</div>
 
 <script>
-function togglePw(){
-  const pw=document.getElementById('password');
-  const icon=document.getElementById('pw-icon');
-  if(pw.type==='password'){
-    pw.type='text';
-    icon.innerHTML=`<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`;
-  } else {
-    pw.type='password';
-    icon.innerHTML=`<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
-  }
+function redirectByRole(role){
+  if(role==='FIELD_ENGINEER') window.location.href='/field.html';
+  else if(role==='CONTRACTOR') window.location.href='/contractor.html';
+  else if(role==='GVMC_EE') window.location.href='/ee-dashboard.html';
+  else window.location.href='/index.html';
 }
+
+// Password toggle
+document.getElementById('pw-btn').addEventListener('click', function(){
+  const pw = document.getElementById('password');
+  const icon = document.getElementById('pw-icon');
+  if(pw.type === 'password'){
+    pw.type = 'text';
+    icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  } else {
+    pw.type = 'password';
+    icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+});
 
 function showError(msg){
-  const box=document.getElementById('error-box');
-  document.getElementById('error-text').textContent=msg;
+  const box = document.getElementById('error-box');
+  document.getElementById('error-text').textContent = msg;
   box.classList.add('show');
 }
-
 function hideError(){
   document.getElementById('error-box').classList.remove('show');
 }
 
 async function doLogin(){
-  const email=document.getElementById('email').value.trim();
-  const password=document.getElementById('password').value;
-  const btn=document.getElementById('btn-login');
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('btn-login');
   hideError();
-  if(!email){showError('Please enter your official email address.');return;}
-  if(!password){showError('Please enter your password.');return;}
-  btn.classList.add('loading');btn.disabled=true;
-  try{
-    const res=await fetch('/api/v1/auth/login',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email,password}),
+  if(!email){ showError('Please enter your official email address.'); return; }
+  if(!password){ showError('Please enter your password.'); return; }
+  btn.classList.add('loading'); btn.disabled = true;
+  try {
+    const res  = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, password}),
     });
-    const data=await res.json();
+    const data = await res.json();
     if(!data.ok){
-      showError(data.error||'Invalid credentials. Please contact IT Helpdesk.');
+      showError(data.error || 'Invalid credentials. Please contact IT Helpdesk.');
       return;
     }
-    localStorage.setItem('sl_token',data.token);
-    localStorage.setItem('sl_refresh',data.refresh_token);
-    localStorage.setItem('sl_user',JSON.stringify(data.user));
-    localStorage.setItem('sl_role',data.user.role);
-    const role = data.user.role;
-    if(role === 'FIELD_ENGINEER'){
-      window.location.href = '/field.html';
-    } else if(role === 'CONTRACTOR'){
-      window.location.href = '/contractor.html';
-    } else if(role === 'GVMC_EE'){
-      window.location.href = '/ee-dashboard.html';
-    } else {
-      window.location.href = '/index.html';
-    }
+    localStorage.setItem('sl_token',   data.token);
+    localStorage.setItem('sl_refresh', data.refresh_token);
+    localStorage.setItem('sl_user',    JSON.stringify(data.user));
+    localStorage.setItem('sl_role',    data.user.role);
+    redirectByRole(data.user.role);
   } catch(err){
     showError('Unable to connect to server. Please contact IT Helpdesk.');
   } finally {
-    btn.classList.remove('loading');btn.disabled=false;
+    btn.classList.remove('loading'); btn.disabled = false;
   }
 }
 
-document.addEventListener('keypress',e=>{if(e.key==='Enter')doLogin();});
-if(localStorage.getItem('sl_token')){
-  const role = localStorage.getItem('sl_role');
-  if(role === 'FIELD_ENGINEER') window.location.href='/field.html';
-  else if(role === 'CONTRACTOR') window.location.href='/contractor.html';
-  else if(role === 'GVMC_EE') window.location.href='/ee-dashboard.html';
-  else window.location.href='/index.html';
-}
+document.getElementById('btn-login').addEventListener('click', doLogin);
+document.addEventListener('keypress', e => { if(e.key === 'Enter') doLogin(); });
+
+// Already logged in
+const t = localStorage.getItem('sl_token');
+const r = localStorage.getItem('sl_role');
+if(t && r) redirectByRole(r);
 </script>
 </body>
 </html>
