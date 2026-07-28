@@ -40,10 +40,11 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:  ["'self'"],
-      scriptSrc:  ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'cdn.jsdelivr.net'],
+      scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'cdn.jsdelivr.net'],
+      scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc:    ["'self'", "'unsafe-inline'", 'cdn.jsdelivr.net'],
-      imgSrc:      ["'self'", 'data:', '*.openstreetmap.org', '*.tile.openstreetmap.org'],
-      connectSrc:  ["'self'", 'ws:', 'wss:'],
+      imgSrc:      ["'self'", 'data:', '*.openstreetmap.org', '*.tile.openstreetmap.org', 'blob:'],
+      connectSrc:  ["'self'", 'ws:', 'wss:', 'https://cdn.jsdelivr.net'],
       fontSrc:     ["'self'", 'cdn.jsdelivr.net'],
       objectSrc:   ["'none'"],
       frameSrc:    ["'none'"],
