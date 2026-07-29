@@ -1363,6 +1363,52 @@ async function viewReport(){
   }
 }
 
+// ─── ROLE BASED UI ───────────────────────────────────────────────────────────
+(function(){
+  const role = window.CURRENT_ROLE;
+
+  // READ_ONLY — hide all action buttons
+  if(role === 'READ_ONLY'){
+    // Hide export and report buttons
+    document.querySelectorAll('.export-btn').forEach(el => el.style.display='none');
+
+    // Hide contractor and analytics tabs
+    document.querySelectorAll('.nav-tab').forEach(t => {
+      if(t.textContent.includes('Contractor') ||
+         t.textContent.includes('Analytics')){
+        t.style.display='none';
+      }
+    });
+
+    // Add read-only banner
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:rgba(84,110,138,0.15);border:1px solid rgba(84,110,138,0.3);color:#90a4ae;padding:4px 16px;font-size:11px;text-align:center;';
+    banner.textContent = '👁 READ ONLY ACCESS — View only. No exports or edits permitted.';
+    document.querySelector('.nav-tabs').after(banner);
+  }
+
+  // COMMISSIONER — hide penalty reset and audit trigger
+  if(role === 'GVMC_COMMISSIONER'){
+    // Commissioner can see everything except system admin actions
+    // API already blocks unauthorized actions
+  }
+
+  // Color code role badge
+  const roleColors = {
+    'SUPER_ADMIN':       '#ff5252',
+    'GVMC_COMMISSIONER': '#4fc3f7',
+    'GVMC_EE':           '#00e676',
+    'CONTRACTOR':        '#ffab40',
+    'FIELD_ENGINEER':    '#e040fb',
+    'READ_ONLY':         '#546e8a',
+  };
+  const roleEl = document.getElementById('user-role');
+  if(roleEl && roleColors[role]){
+    roleEl.style.color = roleColors[role];
+    roleEl.style.fontWeight = '600';
+  }
+})();
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 renderZones(); renderAuditLog(); updateKPIs();
 setInterval(liveUpdate,10000);
