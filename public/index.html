@@ -1366,32 +1366,7 @@ async function viewReport(){
 // ─── ROLE BASED UI ───────────────────────────────────────────────────────────
 (function(){
   const role = window.CURRENT_ROLE;
-
-  // READ_ONLY — hide all action buttons
-  if(role === 'READ_ONLY'){
-    // Hide export and report buttons
-    document.querySelectorAll('.export-btn').forEach(el => el.style.display='none');
-
-    // Hide contractor and analytics tabs
-    document.querySelectorAll('.nav-tab').forEach(t => {
-      if(t.textContent.includes('Contractor') ||
-         t.textContent.includes('Analytics')){
-        t.style.display='none';
-      }
-    });
-
-    // Add read-only banner
-    const banner = document.createElement('div');
-    banner.style.cssText = 'background:rgba(84,110,138,0.15);border:1px solid rgba(84,110,138,0.3);color:#90a4ae;padding:4px 16px;font-size:11px;text-align:center;';
-    banner.textContent = '👁 READ ONLY ACCESS — View only. No exports or edits permitted.';
-    document.querySelector('.nav-tabs').after(banner);
-  }
-
-  // COMMISSIONER — hide penalty reset and audit trigger
-  if(role === 'GVMC_COMMISSIONER'){
-    // Commissioner can see everything except system admin actions
-    // API already blocks unauthorized actions
-  }
+  const user = window.CURRENT_USER;
 
   // Color code role badge
   const roleColors = {
@@ -1402,10 +1377,54 @@ async function viewReport(){
     'FIELD_ENGINEER':    '#e040fb',
     'READ_ONLY':         '#546e8a',
   };
+  const roleLabels = {
+    'SUPER_ADMIN':       '🔴 Super Admin',
+    'GVMC_COMMISSIONER': '🔵 Commissioner',
+    'GVMC_EE':           '🟢 Executive Engineer',
+    'CONTRACTOR':        '🟡 Contractor',
+    'FIELD_ENGINEER':    '🟣 Field Engineer',
+    'READ_ONLY':         '⚫ Read Only',
+  };
+
+  // Update role display
   const roleEl = document.getElementById('user-role');
-  if(roleEl && roleColors[role]){
-    roleEl.style.color = roleColors[role];
+  if(roleEl){
+    roleEl.textContent = roleLabels[role] || role;
+    roleEl.style.color = roleColors[role] || '#90a4ae';
     roleEl.style.fontWeight = '600';
+  }
+
+  // SUPER_ADMIN — add user management button
+  if(role === 'SUPER_ADMIN'){
+    const btn = document.createElement('button');
+    btn.textContent = '👥 Users';
+    btn.style.cssText = 'background:rgba(255,82,82,0.15);border:1px solid rgba(255,82,82,0.3);color:#ff5252;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;margin-right:4px;';
+    btn.onclick = () => window.location.href = '/api/v1/admin/users';
+    document.querySelector('.btn-signout').before(btn);
+  }
+
+  // COMMISSIONER — add report button in header
+  if(role === 'GVMC_COMMISSIONER'){
+    const btn = document.createElement('button');
+    btn.textContent = '📊 Reports';
+    btn.style.cssText = 'background:rgba(79,195,247,0.15);border:1px solid rgba(79,195,247,0.3);color:#4fc3f7;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;margin-right:4px;';
+    btn.onclick = () => viewReport();
+    document.querySelector('.btn-signout').before(btn);
+  }
+
+  // READ_ONLY — hide action buttons and tabs
+  if(role === 'READ_ONLY'){
+    document.querySelectorAll('.export-btn').forEach(el => el.style.display='none');
+    document.querySelectorAll('.nav-tab').forEach(t => {
+      if(t.textContent.includes('Contractor') ||
+         t.textContent.includes('Analytics')){
+        t.style.display='none';
+      }
+    });
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:rgba(84,110,138,0.15);border:1px solid rgba(84,110,138,0.3);color:#90a4ae;padding:4px 16px;font-size:11px;text-align:center;';
+    banner.textContent = '👁 READ ONLY ACCESS — View only. No exports or edits permitted.';
+    document.querySelector('.nav-tabs').after(banner);
   }
 })();
 
