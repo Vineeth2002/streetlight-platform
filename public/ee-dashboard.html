@@ -139,10 +139,13 @@ tr:hover td{background:rgba(79,195,247,0.05)}
       <div style="position:relative;height:180px;margin-bottom:16px">
         <canvas id="faultChart"></canvas>
       </div>
-      <div class="section-title" style="margin-top:8px">⚡ Quick Stats</div>
-      <div style="display:flex;flex-direction:column;gap:6px" id="quick-stats"></div>
-    </div>
+      <div class="card" style="margin-top:16px">
+  <div class="section-title">📈 Zone Glow Rate — Threshold Monitor</div>
+  <div style="position:relative;height:200px"><canvas id="eeGlowChart"></canvas></div>
+  <div id="ee-glow-warning" style="display:none;margin-top:8px;background:rgba(255,82,82,0.1);border:1px solid rgba(255,82,82,0.3);border-radius:6px;padding:8px 12px;font-size:11px;color:#ff5252">
+    🚨 <strong>ALERT:</strong> <span id="ee-glow-warning-text"></span>
   </div>
+</div>
   <div class="card">
     <div class="section-title">🔴 Recent SLA Breaches in Zone</div>
     <div id="breach-list"></div>
@@ -333,6 +336,7 @@ function renderAll(glowRate){
   renderWards();
   renderContractor(glowNum, penalty);
   renderSLA();
+  buildEEGlowChart(glowRate);
 }
 
 // ─── MAP ──────────────────────────────────────────────────────────────────────
@@ -538,6 +542,58 @@ function switchTab(name){
   document.getElementById('page-'+name).classList.add('active');
   const tabs=['overview','workorders','wards','contractor','sla'];
   document.querySelectorAll('.nav-tab')[tabs.indexOf(name)]?.classList.add('active');
+}
+
+function buildEEGlowChart(glowRate){
+  const canvas = document.getElementById('eeGlowChart');
+  if(!canvas) return;
+  const g = parseFloat(glowRate);
+  const color = g>=97?'rgba(0,230,118,0.7)':g>=95?'rgba(255,171,64,0.7)':'rgba(255,82,82,0.7)';
+  new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels:[zoneName],
+      datasets:[{
+        label:'Glow Rate %',
+        data:[g],
+        backgroundColor:[color],
+        borderRadius:4,
+      },{
+        label:'Min Target (95%)',
+        data:[95],
+        type:'line',borderColor:'#ff5252',
+        borderDash:[5,5],pointRadius:4,fill:false,
+      },{
+        label:'Good Target (97%)',
+        data:[97],
+        type:'line',borderColor:'#00e676',
+        borderDash:[5,5],pointRadius:4,fill:false,
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#90a4ae',font:{size:10}}}},
+      scales:{
+        y:{min:85,max:100,
+          grid:{color:'rgba(255,255,255,0.05)'},
+          ticks:{color:'#546e8a',callback:v=>v+'%'}
+        },
+        x:{grid:{display:false},ticks:{color:'#546e8a'}}
+      }
+    }
+  });
+  const warn = document.getElementById('ee-glow-warning');
+  const warnText = document.getElementById('ee-glow-warning-text');
+  if(g < 95){
+    warn.style.display='block';
+    warnText.textContent=`${zoneName} glow rate ${g}% is BELOW 95% minimum. Penalty applicable!`;
+  } else if(g < 97){
+    warn.style.display='block';
+    warn.style.background='rgba(255,171,64,0.08)';
+    warn.style.borderColor='rgba(255,171,64,0.3)';
+    warn.style.color='#ffab40';
+    warnText.textContent=`${zoneName} glow rate ${g}% is below 97% target. Needs attention.`;
+  }
 }
 
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────

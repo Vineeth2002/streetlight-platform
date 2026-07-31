@@ -133,6 +133,15 @@ tr:hover td{background:#f8f9fa}
     </div>
   </div>
 
+<!-- Glow Rate Chart -->
+<div class="chart-card">
+  <div class="section-title">📈 Zone Glow Rate — Threshold Monitor</div>
+  <div style="position:relative;height:180px"><canvas id="contractorGlowChart"></canvas></div>
+  <div id="contractor-glow-warning" style="display:none;margin-top:8px;background:rgba(255,82,82,0.1);border:1px solid rgba(255,82,82,0.3);border-radius:6px;padding:8px 12px;font-size:11px;color:#ff5252">
+    🚨 <strong>ALERT:</strong> <span id="contractor-glow-text"></span>
+  </div>
+</div>
+
   <!-- SLA Chart -->
   <div class="chart-card">
     <div class="section-title">📊 SLA Compliance — This Month</div>
@@ -245,7 +254,9 @@ function renderKPIs(wos, glow){
   document.getElementById('kpi-glow').textContent     = glow;
   document.getElementById('kpi-glow').className       =
     'kpi-val ' + (parseFloat(glow)>=98?'kpi-green':parseFloat(glow)>=96?'kpi-amber':'kpi-red');
+  buildContractorGlowChart(glow);
 }
+
 
 function renderBilling(wos){
   const totalPenalty = wos.reduce((s,w)=>s+(parseFloat(w.penalty_deducted)||0),0);
@@ -301,6 +312,55 @@ function renderChart(wos){
       plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12}}}
     }
   });
+}
+
+function buildContractorGlowChart(glow){
+  const canvas = document.getElementById('contractorGlowChart');
+  if(!canvas) return;
+  const g = parseFloat(glow);
+  const color = g>=97?'#19875499':g>=95?'#ff880099':'#dc354599';
+  new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels:[CONTRACTOR_INFO.zone_name],
+      datasets:[{
+        label:'Glow Rate %',
+        data:[g],
+        backgroundColor:[color],
+        borderRadius:4,
+      },{
+        label:'Min Target (95%)',
+        data:[95],
+        type:'line',borderColor:'#dc3545',
+        borderDash:[5,5],pointRadius:4,fill:false,
+      },{
+        label:'Good Target (97%)',
+        data:[97],
+        type:'line',borderColor:'#198754',
+        borderDash:[5,5],pointRadius:4,fill:false,
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10}}}},
+      scales:{
+        y:{min:85,max:100,ticks:{callback:v=>v+'%'}},
+        x:{grid:{display:false}}
+      }
+    }
+  });
+  const warn = document.getElementById('contractor-glow-warning');
+  const warnText = document.getElementById('contractor-glow-text');
+  if(g < 95){
+    warn.style.display='block';
+    warnText.textContent=`Glow rate ${g}% is BELOW 95%. Penalty will be applied!`;
+  } else if(g < 97){
+    warn.style.display='block';
+    warn.style.background='rgba(255,136,0,0.08)';
+    warn.style.borderColor='rgba(255,136,0,0.3)';
+    warn.style.color='#ff8800';
+    warnText.textContent=`Glow rate ${g}% is below 97% target. Improvement needed.`;
+  }
 }
 
 function doLogout(){
