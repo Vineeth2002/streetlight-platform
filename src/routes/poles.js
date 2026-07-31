@@ -355,4 +355,45 @@ router.get('/search/:query', async (req, res) => {
   }
 });
 
+// ─── GET /api/v1/poles/glow-history ──────────────────────────────────────────
+router.get('/glow-history', async (req, res) => {
+  try {
+    const months = parseInt(req.query.months) || 12;
+    const zoneId = req.query.zone_id;
+
+    // Get snapshots if they exist
+    let snapshots = await db.manyOrNone(`
+      SELECT snapshot_month, zone_id, zone_name,
+             glow_rate_pct, target_glow_rate,
+             met_target, company_name
+      FROM monthly_glow_snapshots
+      WHERE ($1::int IS NULL OR zone_id = $1)
+      ORDER BY snapshot_month DESC
+      LIMIT $2
+    `, [zoneId || null, months * 7]);
+
+    // If no snapshots yet return current data
+    if(!snapshots || !snapshots.length){
+      const current = await db.manyOrNone(`
+        SELECT zone_id, zone_name,
+               glow_rate_pct,
+               total_poles, operational_poles
+        FROM v_zone_glow_rates
+        ORDER BY zone_name
+      `);
+      return res.json({
+        ok: true,
+        has_history: false,
+        current_only: true,
+        data: current
+      });
+    }
+
+    res.json({ ok: true, has_history: true, data: snapshots });
+  } catch(err){
+    logger.error('Glow history error', { error: err.message });
+    res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
