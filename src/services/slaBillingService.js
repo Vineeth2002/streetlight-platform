@@ -127,6 +127,47 @@ async function runMonthlyBillingAudit(options = {}) {
   }
 }
 
+async function saveMonthlyGlowSnapshot(){
+  try {
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const snapshotMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+    const zones = await db.manyOrNone(`
+      SELECT z.zone_id, z.zone_name,
+             COUNT(p.pole_id) AS total_poles,
+             COUNT(p.pole_id) FILTER(WHERE p.current_status='OPERATIONAL') AS operational_poles,
+             ROUND(COUNT(p.pole_id) FILTER(WHERE p.current_status='OPERATIONAL')::NUMERIC
+               / NULLIF(COUNT(p.pole_id),0)*100,2) AS glow_rate_pct,
+             c.contractor_id, c.company_name, c.target_glow_rate
+      FROM zones z
+      LEFT JOIN wards w ON w.zone_id=z.zone_id
+      LEFT JOIN junction_boxes jb ON jb.ward_id=w.ward_id
+      LEFT JOIN poles p ON p.cabinet_id=jb.cabinet_id
+      LEFT JOIN contractors c ON c.assigned_zone_id=z.zone_id
+      GROUP BY z.zone_id,z.zone_name,c.contractor_id,c.company_name,c.target_glow_rate
+    `);
+    for(const zone of zones){
+      const glow   = parseFloat(zone.glow_rate_pct||0);
+      const target = parseFloat(zone.target_glow_rate||98);
+      await db.none(`
+        INSERT INTO monthly_glow_snapshots
+          (snapshot_month,zone_id,zone_name,total_poles,
+           operational_poles,glow_rate_pct,contractor_id,
+           company_name,target_glow_rate,met_target)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        ON CONFLICT (snapshot_month,zone_id) DO UPDATE
+          SET glow_rate_pct=EXCLUDED.glow_rate_pct,
+              met_target=EXCLUDED.met_target
+      `,[snapshotMonth,zone.zone_id,zone.zone_name,
+         parseInt(zone.total_poles||0),parseInt(zone.operational_poles||0),
+         glow,zone.contractor_id||null,zone.company_name||null,target,glow>=target]);
+    }
+    logger.info('Monthly glow snapshots saved',{month:snapshotMonth});
+  } catch(err){
+    logger.error('Glow snapshot failed',{error:err.message});
+  }
+}
+
 async function resetMonthlyCounters() {
   await db.none(`UPDATE contractors SET total_penalty_mtd=0, total_solved_daily=0`);
   logger.info('Monthly counters reset');
@@ -138,8 +179,9 @@ function startBillingCron() {
     logger.info('Billing cron triggered');
     try {
       await resetMonthlyCounters();
-      await runMonthlyBillingAudit();
-      await sendMonthlyReport();
+    await runMonthlyBillingAudit();
+    await saveMonthlyGlowSnapshot();
+    await sendMonthlyReport();
     } catch (err) {
       logger.error('Cron billing error', { error: err.message });
     }
