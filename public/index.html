@@ -300,6 +300,13 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 
 <div class="page" id="page-analytics">
   <div class="analytics-page">
+    <div class="analytics-card full">
+      <div class="chart-title">📈 Monthly Zone Glow Rate — All Zones</div>
+      <div style="position:relative;height:260px"><canvas id="glowTrendChart"></canvas></div>
+      <div id="glow-threshold-warning" style="display:none;margin-top:10px;background:rgba(255,82,82,0.1);border:1px solid rgba(255,82,82,0.3);border-radius:6px;padding:8px 14px;font-size:12px;color:#ff5252">
+        🚨 <strong>ALERT:</strong> <span id="glow-warning-text"></span>
+      </div>
+    </div>
     <div class="analytics-card">
       <div class="chart-title">Fault Type Breakdown</div>
       <div style="position:relative;height:220px"><canvas id="faultChart"></canvas></div>
@@ -759,6 +766,17 @@ function updateKPIs(){
   const totalPenalty = zoneData.reduce((s,z)=>s+z.penalty,0);
   const breaches = auditLog.filter(e=>e.slaBreached&&!e.resolved).length;
   document.getElementById('kpi-uptime').textContent    = avgGlow+'%';
+  const glowNum = parseFloat(avgGlow);
+const uptimeEl = document.getElementById('kpi-uptime');
+if(glowNum < 95){
+  uptimeEl.className = 'kpi-val kpi-red';
+  uptimeEl.parentElement.style.border = '1px solid rgba(255,82,82,0.5)';
+  uptimeEl.parentElement.style.background = 'rgba(255,82,82,0.08)';
+} else if(glowNum < 97){
+  uptimeEl.className = 'kpi-val kpi-amber';
+} else {
+  uptimeEl.className = 'kpi-val kpi-green';
+}
   document.getElementById('kpi-faults').textContent    = totalFaults.toLocaleString('en-IN');
   document.getElementById('kpi-penalty').textContent   = '₹'+totalPenalty.toLocaleString('en-IN');
   document.getElementById('kpi-sla-breach').textContent= breaches;
@@ -1187,6 +1205,82 @@ function buildAnalytics(){
       <div style="font-size:10px;color:#ddd">${f}</div>
     </div>`;
   }).join('');
+  // Build glow trend chart
+  buildGlowTrendChart();
+}
+
+// ─── GLOW TREND CHART ────────────────────────────────────────────────────────
+let glowTrendChart = null;
+async function buildGlowTrendChart(){
+  try{
+    const token = localStorage.getItem('sl_token');
+    const res = await fetch('/api/v1/poles/glow-history?months=12',{
+      headers:{'Authorization':'Bearer '+token}
+    });
+    const data = await res.json();
+    const canvas = document.getElementById('glowTrendChart');
+    if(!canvas) return;
+    if(glowTrendChart) glowTrendChart.destroy();
+    glowTrendChart = new Chart(canvas,{
+      type:'bar',
+      data:{
+        labels: zoneData.map(z=>z.name),
+        datasets:[{
+          label:'Glow Rate %',
+          data: zoneData.map(z=>parseFloat(z.glow)),
+          backgroundColor: zoneData.map(z=>{
+            const g=parseFloat(z.glow);
+            return g>=97?'rgba(0,230,118,0.7)':g>=95?'rgba(255,171,64,0.7)':'rgba(255,82,82,0.7)';
+          }),
+          borderRadius:4,
+        },{
+          label:'Min Target (95%)',
+          data: new Array(zoneData.length).fill(95),
+          type:'line',borderColor:'#ff5252',
+          borderDash:[5,5],pointRadius:0,fill:false,
+        },{
+          label:'Good Target (97%)',
+          data: new Array(zoneData.length).fill(97),
+          type:'line',borderColor:'#00e676',
+          borderDash:[5,5],pointRadius:0,fill:false,
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{labels:{color:'#90a4ae',font:{size:10}}},
+          tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}%`}}
+        },
+        scales:{
+          y:{min:85,max:100,
+            grid:{color:'rgba(255,255,255,0.05)'},
+            ticks:{color:'#546e8a',callback:v=>v+'%'}
+          },
+          x:{grid:{display:false},ticks:{color:'#546e8a',font:{size:9}}}
+        }
+      }
+    });
+    // Threshold warnings
+    const below95 = zoneData.filter(z=>parseFloat(z.glow)<95);
+    const below97 = zoneData.filter(z=>parseFloat(z.glow)<97&&parseFloat(z.glow)>=95);
+    const warningDiv = document.getElementById('glow-threshold-warning');
+    const warningText = document.getElementById('glow-warning-text');
+    if(below95.length>0){
+      warningDiv.style.display='block';
+      warningDiv.style.color='#ff5252';
+      warningText.textContent=`${below95.map(z=>z.name).join(', ')} — Below 95% threshold! Penalty applicable.`;
+    } else if(below97.length>0){
+      warningDiv.style.display='block';
+      warningDiv.style.background='rgba(255,171,64,0.08)';
+      warningDiv.style.borderColor='rgba(255,171,64,0.3)';
+      warningDiv.style.color='#ffab40';
+      warningText.textContent=`${below97.map(z=>z.name).join(', ')} — Below 97%. Monitor closely.`;
+    } else {
+      warningDiv.style.display='none';
+    }
+  } catch(err){
+    console.error('Glow trend error:',err);
+  }
 }
 
 // ─── LIVE UPDATE ─────────────────────────────────────────────────────────────
