@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/demo-data.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow:hidden;height:100vh}
@@ -1493,7 +1494,7 @@ async function viewReport(){
     const btn = document.createElement('button');
     btn.textContent = '👥 Users';
     btn.style.cssText = 'background:rgba(255,82,82,0.15);border:1px solid rgba(255,82,82,0.3);color:#ff5252;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;margin-right:4px;';
-    btn.onclick = () => window.location.href = '/api/v1/admin/users';
+    btn.onclick = () => alert('Admin User Management — Coming Soon. Use scripts/create-users.js for now.');
     document.querySelector('.btn-signout').before(btn);
   }
 
