@@ -1,3 +1,7 @@
+-- NOTE: Security tables (users, audit_log, api_keys, refresh_tokens)
+-- and monthly_glow_snapshots are in db/004_security.sql
+-- Run 004_security.sql after this file.
+
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
