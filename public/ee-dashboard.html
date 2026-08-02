@@ -290,22 +290,39 @@ async function loadData(){
       headers:{'Authorization':'Bearer '+token}
     });
     const data = await res.json();
-    workOrders = data.ok && data.data?.length ? data.data : genDemoWOs();
+    if(data.ok && data.data?.length){
+      workOrders = data.data;
+    } else {
+      workOrders = window.SL_DEMO
+        ? window.SL_DEMO.getWorkOrders(zoneId)
+        : genDemoWOs();
+    }
   } catch(e){
-    workOrders = genDemoWOs();
+    workOrders = window.SL_DEMO
+      ? window.SL_DEMO.getWorkOrders(zoneId)
+      : genDemoWOs();
   }
 
   // Zone glow from API
   let glowRate = (95+Math.random()*4).toFixed(1);
-  try {
-    const res = await fetch('/api/v1/poles/zones',{headers:{'Authorization':'Bearer '+token}});
-    const data = await res.json();
-    if(data.ok && data.zones?.length){
-      const zone = data.zones.find(z=>z.zone_name===zoneName);
-      if(zone && zone.glow_rate_pct) glowRate = zone.glow_rate_pct;
-    }
-  } catch(e){}
-
+try {
+  const res = await fetch('/api/v1/poles/zones',{headers:{'Authorization':'Bearer '+token}});
+  const data = await res.json();
+  if(data.ok && data.zones?.length){
+    const zone = data.zones.find(z=>z.zone_name===zoneName);
+    if(zone && zone.glow_rate_pct) glowRate = zone.glow_rate_pct;
+  } else if(window.SL_DEMO){
+    const demoZones = window.SL_DEMO.getZones();
+    const myZone = demoZones.find(z=>z.name===zoneName);
+    if(myZone) glowRate = myZone.glow;
+  }
+} catch(e){
+  if(window.SL_DEMO){
+    const demoZones = window.SL_DEMO.getZones();
+    const myZone = demoZones.find(z=>z.name===zoneName);
+    if(myZone) glowRate = myZone.glow;
+  }
+}
   renderAll(glowRate);
 }
 
