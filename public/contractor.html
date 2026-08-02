@@ -224,19 +224,42 @@ async function loadData(){
       headers:{'Authorization':'Bearer '+token}
     });
     const data = await res.json();
-    workOrders = data.ok && data.data?.length ? data.data : DEMO_WO;
-  } catch(e){ workOrders = DEMO_WO; }
+    if(data.ok && data.data?.length){
+      workOrders = data.data;
+    } else {
+      // Use shared demo data filtered for this contractor's zone
+      const demoWOs = window.SL_DEMO
+        ? window.SL_DEMO.getWorkOrders(null, CURRENT_USER.contractor_id || 1)
+        : DEMO_WO;
+      workOrders = demoWOs.length ? demoWOs : DEMO_WO;
+    }
+  } catch(e){
+    const demoWOs = window.SL_DEMO
+      ? window.SL_DEMO.getWorkOrders(null, CURRENT_USER.contractor_id || 1)
+      : DEMO_WO;
+    workOrders = demoWOs.length ? demoWOs : DEMO_WO;
+  }
 
   // Zone glow
   let glowRate = '97.8%';
-  try {
-    const res = await fetch('/api/v1/poles/zones',{headers:{'Authorization':'Bearer '+token}});
-    const data = await res.json();
-    if(data.ok && data.zones?.length){
-      const zone = data.zones.find(z=>z.zone_name===CONTRACTOR_INFO.zone_name);
-      if(zone && zone.glow_rate_pct) glowRate = zone.glow_rate_pct+'%';
-    }
-  } catch(e){}
+try {
+  const res = await fetch('/api/v1/poles/zones',{headers:{'Authorization':'Bearer '+token}});
+  const data = await res.json();
+  if(data.ok && data.zones?.length){
+    const zone = data.zones.find(z=>z.zone_name===CONTRACTOR_INFO.zone_name);
+    if(zone && zone.glow_rate_pct) glowRate = zone.glow_rate_pct+'%';
+  } else if(window.SL_DEMO){
+    const demoZones = window.SL_DEMO.getZones();
+    const myZone = demoZones.find(z=>z.name===CONTRACTOR_INFO.zone_name);
+    if(myZone) glowRate = myZone.glow+'%';
+  }
+} catch(e){
+  if(window.SL_DEMO){
+    const demoZones = window.SL_DEMO.getZones();
+    const myZone = demoZones.find(z=>z.name===CONTRACTOR_INFO.zone_name);
+    if(myZone) glowRate = myZone.glow+'%';
+  }
+}
 
   renderKPIs(workOrders, glowRate);
   renderBilling(workOrders);
