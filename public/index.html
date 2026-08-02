@@ -399,14 +399,15 @@ const HIST_TEMPLATES = new Array(
   new Array('Salt cleaning done on PCB','Driver board swapped','Pole realignment after road work')
 );
 
-let zoneData = ZONES.map(z=>({
-...z,
+// ─── USE SHARED DEMO DATA ─────────────────────────────────────────────────────
+let zoneData = window.SL_DEMO ? window.SL_DEMO.getZones() : ZONES.map(z=>({
+  ...z,
   glow:(95+Math.random()*4).toFixed(1),
   faults:Math.floor(Math.random()*800)+100,
   penalty:Math.floor(Math.random()*80000)+10000,
 }));
 
-let auditLog = new Array();
+let auditLog = window.SL_DEMO ? window.SL_DEMO.getWorkOrders() : new Array();
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function getZoneForWard(w){ return ZONES.find(z=>w>=z.ward_range.at(0)&&w<=z.ward_range.at(1)); }
@@ -484,7 +485,10 @@ function generateEntry(isNew=false){
   };
 }
 
-for(let i=0;i<35;i++) auditLog.push(generateEntry(false));
+// Demo data loaded from shared store above
+if(!window.SL_DEMO) {
+  for(let i=0;i<35;i++) auditLog.push(generateEntry(false));
+}
 
 // ─── MAP ──────────────────────────────────────────────────────────────────────
 const map = L.map('map',{zoomControl:true}).setView(new Array(17.7199,83.2956),12);
@@ -1286,24 +1290,30 @@ async function buildGlowTrendChart(){
 
 // ─── LIVE UPDATE ─────────────────────────────────────────────────────────────
 function liveUpdate(){
-  zoneData=zoneData.map(z=>({
-  ...z,
-    glow:Math.max(93,Math.min(99.9,parseFloat(z.glow)+(Math.random()-.5)*.3)).toFixed(1),
-    faults:Math.max(50,z.faults+Math.floor((Math.random()-.5)*15)),
-    penalty:Math.max(5000,z.penalty+Math.floor((Math.random()-.5)*2000)),
-  }));
-
+  if(window.SL_DEMO){
+    window.SL_DEMO.update();
+    zoneData = window.SL_DEMO.getZones();
+    auditLog  = window.SL_DEMO.getWorkOrders();
+  } else {
+    zoneData=zoneData.map(z=>({
+    ...z,
+      glow:Math.max(93,Math.min(99.9,parseFloat(z.glow)+(Math.random()-.5)*.3)).toFixed(1),
+      faults:Math.max(50,z.faults+Math.floor((Math.random()-.5)*15)),
+      penalty:Math.max(5000,z.penalty+Math.floor((Math.random()-.5)*2000)),
+    }));
+    const newEntry=generateEntry(true);
+    auditLog.unshift(newEntry);
+    if(auditLog.length>150) auditLog.pop();
+    auditLog.forEach((e,i)=>{ if(i>0) e.isNew=false; });
+  }
+  const newEntry = auditLog[0];
   zoneData.forEach(z=>{
     const pct=parseFloat(z.glow);
     const col=pct>=98?'#00e676':pct>=96?'#ffab40':'#ff5252';
     if(zoneMarkers[z.id]){ zoneMarkers[z.id].marker.setStyle({color:col,fillColor:col}); zoneMarkers[z.id].marker.setPopupContent(buildZonePopup(z)); }
   });
 
-  const newEntry=generateEntry(true);
-  auditLog.unshift(newEntry);
-  if(auditLog.length>150) auditLog.pop();
-  auditLog.forEach((e,i)=>{ if(i>0) e.isNew=false; });
-  addFaultMarker(newEntry);
+  if(newEntry) addFaultMarker(newEntry);
   // Only clear search index if user is NOT actively typing
   const activeInput = document.getElementById('search-input');
   if(document.activeElement!== activeInput) searchIndex= new Array();
