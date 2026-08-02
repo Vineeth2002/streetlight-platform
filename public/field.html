@@ -257,7 +257,6 @@ let activeTab = 'jobs';
 // ─── FETCH JOBS ───────────────────────────────────────────────────────────────
 async function fetchJobs(){
   try {
-    // Try real API first
     const res = await fetch('/api/v1/work-orders?limit=50', {
       headers: { 'Authorization': 'Bearer ' + token }
     });
@@ -265,11 +264,57 @@ async function fetchJobs(){
     if(data.ok && data.data && data.data.length > 0){
       jobs = data.data;
     } else {
-      // Fall back to demo data
-      jobs = DEMO_JOBS;
+      // Use shared demo data filtered for field engineer's zone
+      if(window.SL_DEMO){
+        const zoneId = CURRENT_USER.zone_id || 1;
+        const demoWOs = window.SL_DEMO.getWorkOrders(zoneId)
+          .filter(w => w.ticket_status !== 'RESOLVED')
+          .slice(0, 10)
+          .map(w => ({
+            work_order_id:      w.work_order_id,
+            pole_number:        w.pole_number,
+            fault_category:     w.fault_category,
+            fault_description:  w.fault_label,
+            zone_name:          w.zone_name,
+            ward:               `Ward ${w.ward_number}`,
+            road_name:          w.zone_name + ' Area',
+            ticket_status:      w.ticket_status,
+            reported_timestamp: w.reported_timestamp,
+            sla_deadline:       w.sla_deadline,
+            hours_open:         w.hours_open,
+            lat:                w.lat,
+            lng:                w.lng,
+          }));
+        jobs = demoWOs.length ? demoWOs : DEMO_JOBS;
+      } else {
+        jobs = DEMO_JOBS;
+      }
     }
   } catch(e) {
-    jobs = DEMO_JOBS;
+    if(window.SL_DEMO){
+      const zoneId = CURRENT_USER.zone_id || 1;
+      const demoWOs = window.SL_DEMO.getWorkOrders(zoneId)
+        .filter(w => w.ticket_status !== 'RESOLVED')
+        .slice(0, 10)
+        .map(w => ({
+          work_order_id:      w.work_order_id,
+          pole_number:        w.pole_number,
+          fault_category:     w.fault_category,
+          fault_description:  w.fault_label,
+          zone_name:          w.zone_name,
+          ward:               `Ward ${w.ward_number}`,
+          road_name:          w.zone_name + ' Area',
+          ticket_status:      w.ticket_status,
+          reported_timestamp: w.reported_timestamp,
+          sla_deadline:       w.sla_deadline,
+          hours_open:         w.hours_open,
+          lat:                w.lat,
+          lng:                w.lng,
+        }));
+      jobs = demoWOs.length ? demoWOs : DEMO_JOBS;
+    } else {
+      jobs = DEMO_JOBS;
+    }
   }
   renderJobs();
   updateStats();
