@@ -320,7 +320,13 @@ async function loadData(){
   }
 
   // Zone glow from API
-  let glowRate = (95+Math.random()*4).toFixed(1);
+  // Use shared demo data for consistent glow rate
+let glowRate = '97.5';
+if(window.SL_DEMO){
+  const demoZones = window.SL_DEMO.getZones();
+  const myZone = demoZones.find(z=>z.name===zoneName);
+  if(myZone) glowRate = myZone.glow;
+}
 try {
   const res = await fetch('/api/v1/poles/zones',{headers:{'Authorization':'Bearer '+token}});
   const data = await res.json();
