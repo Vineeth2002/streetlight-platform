@@ -255,6 +255,22 @@ const FAULT_LABELS = {
 };
 
 function genDemoWOs(){
+  // Use shared demo data if available for consistency
+  if(window.SL_DEMO){
+    return window.SL_DEMO.getWorkOrders(zoneId).map(w=>({
+      work_order_id:      w.work_order_id,
+      pole_number:        w.pole_number,
+      fault_category:     w.fault_category,
+      ward:               `Ward ${w.ward_number}`,
+      reported_timestamp: w.reported_timestamp,
+      sla_deadline:       w.sla_deadline,
+      ticket_status:      w.ticket_status,
+      hours_open:         w.hours_open,
+      hours_left:         Math.max(0,(new Date(w.sla_deadline)-Date.now())/3600000),
+      penalty_deducted:   w.penalty_deducted,
+    }));
+  }
+  // Fallback random data if SL_DEMO not available
   const faults = ['DRIVER_FAULT','LINE_FAULT','DAY_BURNING_FAULT','CABLE_THEFT','CABINET_FAULT'];
   const statuses = ['PENDING','ASSIGNED','IN_PROGRESS','RESOLVED','SLA_VIOLATED'];
   const wos = [];
