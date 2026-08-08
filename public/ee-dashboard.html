@@ -647,6 +647,23 @@ function doLogout(){
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 loadData();
+
+// ─── SESSION TIMEOUT — 30 minutes inactivity ──────────────────────────────
+let sessionTimer;
+function resetSessionTimer(){
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(()=>{
+    alert('Session expired due to inactivity. Please login again.');
+    localStorage.clear();
+    window.location.href = '/login.html';
+  }, 30 * 60 * 1000); // 30 minutes
+}
+// Reset timer on any user activity
+['click','keypress','mousemove','scroll'].forEach(evt =>
+  document.addEventListener(evt, resetSessionTimer, {passive:true})
+);
+resetSessionTimer(); // Start timer
+
 </script>
 </body>
 </html>
