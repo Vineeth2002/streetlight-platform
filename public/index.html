@@ -1537,6 +1537,21 @@ async function viewReport(){
 renderZones(); renderAuditLog(); updateKPIs();
 setInterval(liveUpdate,10000);
 
+// ─── SESSION TIMEOUT — 30 minutes inactivity ──────────────────────────────
+let sessionTimer;
+function resetSessionTimer(){
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(()=>{
+    alert('Session expired due to inactivity. Please login again.');
+    localStorage.clear();
+    window.location.href = '/login.html';
+  }, 30 * 60 * 1000);
+}
+['click','keypress','mousemove','scroll'].forEach(evt =>
+  document.addEventListener(evt, resetSessionTimer, {passive:true})
+);
+resetSessionTimer();
+
 </script>
 </body>
 </html>

@@ -10,7 +10,7 @@ const { auditLog, requireAuth } = require('../middleware/auth');
 
 const JWT_SECRET           = process.env.JWT_SECRET  || 'change_this_in_production';
 const JWT_EXPIRES_IN       = process.env.JWT_EXPIRES  || '8h';
-const REFRESH_EXPIRES_DAYS = 30;
+const REFRESH_EXPIRES_DAYS = 1;
 const MAX_LOGIN_ATTEMPTS   = 5;
 const LOCKOUT_MINUTES      = 15;
 
