@@ -407,7 +407,66 @@ let zoneData = window.SL_DEMO ? window.SL_DEMO.getZones() : ZONES.map(z=>({
   penalty:Math.floor(Math.random()*80000)+10000,
 }));
 
-let auditLog = window.SL_DEMO ? window.SL_DEMO.getWorkOrders() : new Array();
+function mapDemoToAuditFormat(w){
+  const zone = ZONES.find(z=>z.id===w.zone_id) || ZONES[0];
+  const wardNum = w.ward_number || w.wardNum || 1;
+  const was = WAS_DATA[wardNum] || {name:'Unknown',phone:'0000000000',secretariat:'VSP-X-001',secretariat_code:'000000'};
+  const contractor = getContractorForZone(zone.name);
+  const hoursOpen = w.hours_open || 0;
+  const slaBreached = hoursOpen > 48;
+  const daysOverdue = slaBreached ? Math.ceil(hoursOpen/24 - 2) : 0;
+  const wattage = w.luminaire_wattage || 70;
+  const penaltyA = slaBreached ? 2*((wattage/1000)*11*daysOverdue*6) : 0;
+  const penaltyB = slaBreached ? 25*daysOverdue*10 : 0;
+  const penalty = w.penalty_deducted || parseFloat(Math.max(penaltyA,penaltyB).toFixed(2));
+  const reported = new Date(w.reported_timestamp || Date.now());
+  return {
+    id:               w.pole_number || 'VSP-X-00000',
+    zone:             w.zone_name || zone.name,
+    zone_id:          w.zone_id || zone.id,
+    wardNum:          wardNum,
+    wardLabel:        `Ward ${wardNum}`,
+    secretariat:      was.secretariat,
+    secretariat_code: was.secretariat_code,
+    was_name:         was.name,
+    was_phone:        was.phone,
+    fault:            w.fault_category || 'DRIVER_FAULT',
+    faultLabel:       w.fault_label || FAULT_LABELS[w.fault_category] || 'Unknown Fault',
+    damagedComponent: DAMAGED_COMPONENT[w.fault_category] || 'Unknown',
+    severity:         w.severity || SEVERITY[w.fault_category] || 'MEDIUM',
+    wiring:           w.wiring_type || 'OVERHEAD',
+    wattage:          wattage,
+    team:             w.team || 'Team Alpha',
+    contractor:       contractor ? contractor.name : 'Unknown',
+    contractor_short: contractor ? contractor.short : 'Unknown',
+    reportedAt:       reported.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
+    reportedFull:     reported.toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}),
+    resolvedTs:       w.ticket_status==='RESOLVED' ? new Date().toLocaleString('en-IN') : null,
+    minsAgo:          hoursOpen * 60,
+    hoursOpen:        hoursOpen.toFixed(1),
+    resolved:         w.ticket_status === 'RESOLVED',
+    resDuration:      w.ticket_status==='RESOLVED' ? `${(Math.random()*20+1).toFixed(1)}h` : null,
+    slaBreached:      w.ticket_status === 'SLA_VIOLATED' || slaBreached,
+    isNew:            false,
+    daysOverdue:      daysOverdue,
+    penaltyA:         penaltyA.toFixed(2),
+    penaltyB:         penaltyB.toFixed(2),
+    penalty:          penalty,
+    voltage:          w.fault_category==='LINE_FAULT' ? '0.0' : (220+Math.random()*20).toFixed(1),
+    current:          w.fault_category==='DRIVER_FAULT'||w.fault_category==='LINE_FAULT' ? '0.000' : (0.1+Math.random()*0.5).toFixed(3),
+    activePower:      '0.00',
+    powerFactor:      '0.900',
+    history:          HIST_TEMPLATES[Math.floor(Math.random()*HIST_TEMPLATES.length)],
+    portStatus:       Math.random()>0.3 ? 'READY' : 'NOT_FITTED',
+    lat:              w.lat || zone.lat + (Math.random()-.5)*0.08,
+    lng:              w.lng || zone.lng + (Math.random()-.5)*0.08,
+    area:             zone.area,
+  };
+}
+
+let auditLog = window.SL_DEMO
+  ? window.SL_DEMO.getWorkOrders().map(mapDemoToAuditFormat)
+  : new Array();
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function getZoneForWard(w){ return ZONES.find(z=>w>=z.ward_range.at(0)&&w<=z.ward_range.at(1)); }
@@ -1293,7 +1352,7 @@ function liveUpdate(){
   if(window.SL_DEMO){
     window.SL_DEMO.update();
     zoneData = window.SL_DEMO.getZones();
-    auditLog  = window.SL_DEMO.getWorkOrders();
+    auditLog = window.SL_DEMO.getWorkOrders().map(mapDemoToAuditFormat);
   } else {
     zoneData=zoneData.map(z=>({
     ...z,
