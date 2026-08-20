@@ -111,7 +111,7 @@ app.get('/', (req, res) => {
 });
 
 // Serve specific HTML pages
-const HTML_PAGES = ['login','index','contractor','ee-dashboard','field'];
+const HTML_PAGES = ['login','index','contractor','ee-dashboard','field','admin'];
 HTML_PAGES.forEach(page => {
   app.get(`/${page}.html`, (req, res) => {
     res.sendFile(path.join(__dirname, `../public/${page}.html`));
