@@ -160,11 +160,11 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 /* SEARCH HIGHLIGHT */
 .highlight-marker{animation:blink 1s 3}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
 /* ─── MOBILE RESPONSIVE ─────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   body { overflow: auto; }
 
-  /* Header */
   .header {
     height: auto;
     flex-wrap: wrap;
@@ -179,31 +179,25 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
   .header-right   { gap: 6px; }
   .user-info      { display: none; }
 
-  /* Search */
   .search-bar { flex-wrap: wrap; height: auto; padding: 6px 10px; gap: 4px; }
   .search-bar input { width: 100%; }
   .search-result { display: none; }
 
-  /* Nav tabs */
   .nav-tabs { overflow-x: auto; padding: 0 8px; height: auto; }
   .nav-tab  { font-size: 10px; padding: 5px 8px; white-space: nowrap; }
 
-  /* Pages */
   .page { height: auto; overflow: auto; }
   .page.active { display: block; }
 
-  /* Overview layout — stack vertically */
   .overview-layout { grid-template-columns: 1fr; height: auto; }
   .left-panel { max-height: 300px; overflow-y: auto; }
   .map-container { height: 300px; }
   #map { height: 300px; }
 
-  /* Bottom audit section */
   .bottom-section { height: auto; max-height: 400px; }
   .audit-table { font-size: 10px; }
   .audit-table th, .audit-table td { padding: 4px 5px; }
 
-  /* Hide less important columns on mobile */
   .audit-table th:nth-child(5),
   .audit-table td:nth-child(5),
   .audit-table th:nth-child(6),
@@ -211,17 +205,13 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
   .audit-table th:nth-child(10),
   .audit-table td:nth-child(10) { display: none; }
 
-  /* Analytics */
   .analytics-page { grid-template-columns: 1fr; }
   .analytics-card.full { grid-column: 1; }
 
-  /* SLA summary */
   .sla-summary { grid-template-columns: repeat(2,1fr); }
 
-  /* Contractor cards */
   .contractor-cards { grid-template-columns: 1fr; }
 
-  /* Inspector popup */
   .inspector-box { width: 95vw; margin: 10px; }
   .insp-grid { grid-template-columns: 1fr; }
 }
