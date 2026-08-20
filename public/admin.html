@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GVMC — User Management</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0e1a;color:#e0e6ff;min-height:100vh}
+.topbar{background:linear-gradient(135deg,#0d1b3e,#1a2f6e);border-bottom:2px solid #2a4a9e;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.topbar h1{font-size:16px;font-weight:700;color:#4fc3f7}
+.topbar-sub{font-size:11px;color:#546e8a;margin-top:2px}
+.btn{padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;border:1px solid transparent}
+.btn-back{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);color:#e0e6ff}
+.btn-primary{background:#1a4fa0;border-color:#4fc3f7;color:#fff}
+.btn-primary:hover{background:#1e5ab8}
+.btn-danger{background:rgba(255,82,82,0.15);border-color:rgba(255,82,82,0.3);color:#ff5252}
+.btn-danger:hover{background:rgba(255,82,82,0.3)}
+.btn-sm{padding:4px 10px;font-size:11px}
+.container{padding:20px;max-width:1200px;margin:0 auto}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.search-box{background:#111827;border:1px solid #1e3a5f;border-radius:6px;padding:8px 14px;color:#e0e6ff;font-size:12px;width:280px;outline:none}
+.search-box:focus{border-color:#4fc3f7}
+.table-card{background:#0d1420;border:1px solid #1e3a5f;border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#111827;color:#4fc3f7;padding:10px 14px;text-align:left;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #1e3a5f}
+td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04)}
+tr:hover td{background:rgba(79,195,247,0.05)}
+.role-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.r-admin{background:rgba(255,82,82,0.15);color:#ff5252}
+.r-comm{background:rgba(79,195,247,0.15);color:#4fc3f7}
+.r-ee{background:rgba(0,230,118,0.15);color:#00e676}
+.r-contractor{background:rgba(255,171,64,0.15);color:#ffab40}
+.r-field{background:rgba(224,64,251,0.15);color:#e040fb}
+.r-readonly{background:rgba(84,110,138,0.15);color:#90a4ae}
+.status-active{color:#00e676;font-weight:600}
+.status-inactive{color:#ff5252;font-weight:600}
+.action-btns{display:flex;gap:6px}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal-box{background:#0d1b3e;border:1px solid #2a4a9e;border-radius:12px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal-header{background:linear-gradient(135deg,#0d1b3e,#1a2f6e);padding:14px 18px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a4a9e}
+.modal-title{font-size:14px;font-weight:700;color:#4fc3f7}
+.modal-close{cursor:pointer;color:#90a4ae;font-size:20px}
+.modal-close:hover{color:#fff}
+.modal-body{padding:18px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;font-weight:600;color:#90a4ae;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+.form-group input,.form-group select{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:9px 12px;color:#e0e6ff;font-size:13px;outline:none}
+.form-group input:focus,.form-group select:focus{border-color:#4fc3f7}
+.form-error{color:#ff5252;font-size:11px;margin-top:6px;display:none}
+.form-error.show{display:block}
+.form-success{color:#00e676;font-size:12px;margin-top:6px;display:none;text-align:center}
+.form-success.show{display:block}
+.modal-footer{padding:14px 18px;border-top:1px solid #1e3a5f;display:flex;gap:10px;justify-content:flex-end}
+
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat-card{background:#0d1420;border:1px solid #1e3a5f;border-radius:8px;padding:12px;text-align:center}
+.stat-val{font-size:20px;font-weight:700;color:#4fc3f7}
+.stat-lbl{font-size:10px;color:#546e8a;margin-top:2px}
+
+.loading{text-align:center;padding:40px;color:#546e8a}
+.empty-state{text-align:center;padding:40px;color:#546e8a;font-size:12px}
+
+@media (max-width: 768px) {
+  .container { padding: 10px; }
+  table { font-size: 10px; }
+  th, td { padding: 6px 8px; }
+  .search-box { width: 100%; }
+  .stats-row { grid-template-columns: repeat(2,1fr); }
+  th:nth-child(5), td:nth-child(5) { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>👥 User Management</h1>
+    <div class="topbar-sub">GVMC Streetlight Platform — Admin Panel</div>
+  </div>
+  <div style="display:flex;gap:10px">
+    <button class="btn btn-back" onclick="window.location.href='/index.html'">← Back to Dashboard</button>
+    <button class="btn btn-primary" onclick="openCreateModal()">+ Add New User</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="stats-row" id="stats-row">
+    <div class="stat-card"><div class="stat-val" id="stat-total">—</div><div class="stat-lbl">Total Users</div></div>
+    <div class="stat-card"><div class="stat-val" id="stat-active">—</div><div class="stat-lbl">Active</div></div>
+    <div class="stat-card"><div class="stat-val" id="stat-inactive">—</div><div class="stat-lbl">Deactivated</div></div>
+    <div class="stat-card"><div class="stat-val" id="stat-admins">—</div><div class="stat-lbl">Admins</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" class="search-box" id="search-box" placeholder="🔍 Search by name or email..." oninput="filterUsers(this.value)">
+    <div style="font-size:11px;color:#546e8a" id="user-count"></div>
+  </div>
+
+  <div class="table-card">
+    <div class="loading" id="loading">Loading users...</div>
+    <table id="users-table" style="display:none">
+      <thead>
+        <tr>
+          <th>Name</th><th>Email</th><th>Role</th><th>Zone / Contractor</th>
+          <th>Last Login</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody"></tbody>
+    </table>
+    <div class="empty-state" id="empty-state" style="display:none">No users found</div>
+  </div>
+</div>
+
+<!-- CREATE/EDIT MODAL -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Add New User</div>
+      <div class="modal-close" onclick="closeModal()">✕</div>
+    </div>
+    <div class="modal-body">
+      <div class="form-error" id="form-error"></div>
+      <div class="form-success" id="form-success"></div>
+      <input type="hidden" id="edit-user-id">
+      <div class="form-group">
+        <label>Full Name <span style="color:#ff5252">*</span></label>
+        <input type="text" id="f-name" placeholder="e.g. Ramesh Kumar">
+      </div>
+      <div class="form-group">
+        <label>Email Address <span style="color:#ff5252">*</span></label>
+        <input type="email" id="f-email" placeholder="user@gvmc.gov.in">
+      </div>
+      <div class="form-group" id="password-group">
+        <label>Password <span style="color:#ff5252">*</span></label>
+        <input type="password" id="f-password" placeholder="Minimum 8 characters">
+      </div>
+      <div class="form-group">
+        <label>Role <span style="color:#ff5252">*</span></label>
+        <select id="f-role" onchange="onRoleChange()">
+          <option value="">Select role...</option>
+          <option value="SUPER_ADMIN">Super Admin</option>
+          <option value="GVMC_COMMISSIONER">GVMC Commissioner</option>
+          <option value="GVMC_EE">GVMC Executive Engineer</option>
+          <option value="CONTRACTOR">Contractor</option>
+          <option value="FIELD_ENGINEER">Field Engineer</option>
+          <option value="READ_ONLY">Read Only</option>
+        </select>
+      </div>
+      <div class="form-group" id="zone-group" style="display:none">
+        <label>Zone</label>
+        <select id="f-zone">
+          <option value="">Select zone...</option>
+          <option value="1">North Zone</option>
+          <option value="2">South Zone</option>
+          <option value="3">Central Zone</option>
+          <option value="4">East Zone</option>
+          <option value="5">West Zone</option>
+          <option value="6">Gajuwaka Zone</option>
+          <option value="7">Bheemunipatnam</option>
+        </select>
+      </div>
+      <div class="form-group" id="contractor-group" style="display:none">
+        <label>Contractor</label>
+        <select id="f-contractor">
+          <option value="">Select contractor...</option>
+          <option value="1">Vizag Smart Infra Pvt Ltd</option>
+          <option value="2">Andhra LED Solutions Ltd</option>
+          <option value="3">GVMC Street Light Works</option>
+          <option value="4">Eastern Coastal Electricals</option>
+          <option value="5">Western Hills Power Services</option>
+          <option value="6">Gajuwaka Lighting Consortium</option>
+          <option value="7">Coastal Smart Energy Ltd</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-back" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveUser()">Create User</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET PASSWORD MODAL -->
+<div class="modal-overlay" id="reset-modal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header">
+      <div class="modal-title">Reset Password</div>
+      <div class="modal-close" onclick="closeResetModal()">✕</div>
+    </div>
+    <div class="modal-body">
+      <div class="form-error" id="reset-error"></div>
+      <div class="form-success" id="reset-success"></div>
+      <input type="hidden" id="reset-user-id">
+      <div class="form-group">
+        <label>New Password <span style="color:#ff5252">*</span></label>
+        <input type="password" id="reset-password" placeholder="Minimum 8 characters">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-back" onclick="closeResetModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmResetPassword()">Reset Password</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('sl_token');
+const userStr = localStorage.getItem('sl_user');
+if(!token || !userStr){ window.location.href='/login.html'; }
+const CURRENT_USER = JSON.parse(userStr||'{}');
+if(CURRENT_USER.role !== 'SUPER_ADMIN'){
+  alert('Access denied. Only Super Admin can access user management.');
+  window.location.href = '/index.html';
+}
+
+let allUsers = [];
+
+const ROLE_BADGES = {
+  'SUPER_ADMIN':       {cls:'r-admin',      label:'Super Admin'},
+  'GVMC_COMMISSIONER': {cls:'r-comm',       label:'Commissioner'},
+  'GVMC_EE':           {cls:'r-ee',         label:'EE'},
+  'CONTRACTOR':        {cls:'r-contractor', label:'Contractor'},
+  'FIELD_ENGINEER':    {cls:'r-field',      label:'Field Engineer'},
+  'READ_ONLY':         {cls:'r-readonly',   label:'Read Only'},
+};
+
+async function loadUsers(){
+  try {
+    const res = await fetch('/api/v1/admin/users', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if(res.status === 401){
+      alert('Session expired. Please login again.');
+      localStorage.clear();
+      window.location.href = '/login.html';
+      return;
+    }
+    const data = await res.json();
+    if(data.ok){
+      allUsers = data.users;
+      renderUsers(allUsers);
+      updateStats(allUsers);
+    }
+  } catch(err){
+    document.getElementById('loading').textContent = 'Failed to load users. Please refresh.';
+  }
+}
+
+function updateStats(users){
+  document.getElementById('stat-total').textContent = users.length;
+  document.getElementById('stat-active').textContent = users.filter(u=>u.is_active).length;
+  document.getElementById('stat-inactive').textContent = users.filter(u=>!u.is_active).length;
+  document.getElementById('stat-admins').textContent = users.filter(u=>u.role==='SUPER_ADMIN').length;
+}
+
+function renderUsers(users){
+  document.getElementById('loading').style.display = 'none';
+  const table = document.getElementById('users-table');
+  const empty = document.getElementById('empty-state');
+  const countEl = document.getElementById('user-count');
+
+  countEl.textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
+
+  if(!users.length){
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  table.style.display = 'table';
+  empty.style.display = 'none';
+
+  document.getElementById('users-tbody').innerHTML = users.map(u => {
+    const badge = ROLE_BADGES[u.role] || {cls:'r-readonly', label:u.role};
+    const extra = u.zone_name || u.company_name || '—';
+    const lastLogin = u.last_login
+      ? new Date(u.last_login).toLocaleDateString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
+      : 'Never';
+    const isSelf = u.user_id === CURRENT_USER.user_id;
+
+    return `<tr>
+      <td style="font-weight:600">${escapeHtml(u.full_name)}</td>
+      <td style="color:#90a4ae">${escapeHtml(u.email)}</td>
+      <td><span class="role-badge ${badge.cls}">${badge.label}</span></td>
+      <td style="color:#546e8a;font-size:11px">${escapeHtml(extra)}</td>
+      <td style="color:#546e8a;font-size:11px">${lastLogin}</td>
+      <td class="${u.is_active ? 'status-active' : 'status-inactive'}">${u.is_active ? '● Active' : '○ Inactive'}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-back btn-sm" onclick="openEditModal(${u.user_id})">Edit</button>
+          <button class="btn btn-back btn-sm" onclick="openResetModal(${u.user_id})">Reset PW</button>
+          ${!isSelf ? `<button class="btn btn-danger btn-sm" onclick="toggleUserStatus(${u.user_id}, ${u.is_active})">${u.is_active ? 'Deactivate' : 'Activate'}</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function filterUsers(query){
+  const q = query.toLowerCase().trim();
+  if(!q){ renderUsers(allUsers); return; }
+  const filtered = allUsers.filter(u =>
+    u.full_name.toLowerCase().includes(q) ||
+    u.email.toLowerCase().includes(q)
+  );
+  renderUsers(filtered);
+}
+
+// ─── CREATE / EDIT MODAL ──────────────────────────────────────────────────────
+function onRoleChange(){
+  const role = document.getElementById('f-role').value;
+  document.getElementById('zone-group').style.display = (role === 'GVMC_EE') ? 'block' : 'none';
+  document.getElementById('contractor-group').style.display = (role === 'CONTRACTOR') ? 'block' : 'none';
+}
+
+function openCreateModal(){
+  document.getElementById('modal-title').textContent = 'Add New User';
+  document.getElementById('save-btn').textContent = 'Create User';
+  document.getElementById('edit-user-id').value = '';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-email').value = '';
+  document.getElementById('f-password').value = '';
+  document.getElementById('f-role').value = '';
+  document.getElementById('f-zone').value = '';
+  document.getElementById('f-contractor').value = '';
+  document.getElementById('password-group').style.display = 'block';
+  document.getElementById('zone-group').style.display = 'none';
+  document.getElementById('contractor-group').style.display = 'none';
+  hideFormMessages();
+  document.getElementById('user-modal').classList.add('show');
+}
+
+function openEditModal(userId){
+  const u = allUsers.find(x => x.user_id === userId);
+  if(!u) return;
+  document.getElementById('modal-title').textContent = 'Edit User';
+  document.getElementById('save-btn').textContent = 'Save Changes';
+  document.getElementById('edit-user-id').value = userId;
+  document.getElementById('f-name').value = u.full_name;
+  document.getElementById('f-email').value = u.email;
+  document.getElementById('f-role').value = u.role;
+  document.getElementById('password-group').style.display = 'none';
+  onRoleChange();
+  hideFormMessages();
+  document.getElementById('user-modal').classList.add('show');
+}
+
+function closeModal(){
+  document.getElementById('user-modal').classList.remove('show');
+}
+
+function hideFormMessages(){
+  document.getElementById('form-error').classList.remove('show');
+  document.getElementById('form-success').classList.remove('show');
+}
+
+function showFormError(msg){
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+async function saveUser(){
+  hideFormMessages();
+  const editId = document.getElementById('edit-user-id').value;
+  const name = document.getElementById('f-name').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  const password = document.getElementById('f-password').value;
+  const role = document.getElementById('f-role').value;
+  const zoneId = document.getElementById('f-zone').value || null;
+  const contractorId = document.getElementById('f-contractor').value || null;
+
+  if(!name || !email || !role){
+    showFormError('Please fill all required fields.');
+    return;
+  }
+  if(!editId && (!password || password.length < 8)){
+    showFormError('Password must be at least 8 characters.');
+    return;
+  }
+
+  try {
+    let res;
+    if(editId){
+      res = await fetch(`/api/v1/admin/users/${editId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ full_name: name, role, zone_id: zoneId ? parseInt(zoneId) : null, contractor_id: contractorId ? parseInt(contractorId) : null })
+      });
+    } else {
+      res = await fetch('/api/v1/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ full_name: name, email, password, role, zone_id: zoneId ? parseInt(zoneId) : null, contractor_id: contractorId ? parseInt(contractorId) : null })
+      });
+    }
+    const data = await res.json();
+    if(!data.ok){
+      showFormError(data.error || 'Something went wrong.');
+      return;
+    }
+    closeModal();
+    loadUsers();
+  } catch(err){
+    showFormError('Network error. Please try again.');
+  }
+}
+
+// ─── DEACTIVATE / ACTIVATE ────────────────────────────────────────────────────
+async function toggleUserStatus(userId, isActive){
+  const action = isActive ? 'deactivate' : 'activate';
+  if(!confirm(`Are you sure you want to ${action} this user?`)) return;
+
+  try {
+    if(isActive){
+      const res = await fetch(`/api/v1/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      if(!data.ok){ alert(data.error || 'Failed to deactivate user.'); return; }
+    } else {
+      const res = await fetch(`/api/v1/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ is_active: true })
+      });
+      const data = await res.json();
+      if(!data.ok){ alert(data.error || 'Failed to activate user.'); return; }
+    }
+    loadUsers();
+  } catch(err){
+    alert('Network error. Please try again.');
+  }
+}
+
+// ─── RESET PASSWORD MODAL ─────────────────────────────────────────────────────
+function openResetModal(userId){
+  document.getElementById('reset-user-id').value = userId;
+  document.getElementById('reset-password').value = '';
+  document.getElementById('reset-error').classList.remove('show');
+  document.getElementById('reset-success').classList.remove('show');
+  document.getElementById('reset-modal').classList.add('show');
+}
+
+function closeResetModal(){
+  document.getElementById('reset-modal').classList.remove('show');
+}
+
+async function confirmResetPassword(){
+  const userId = document.getElementById('reset-user-id').value;
+  const newPassword = document.getElementById('reset-password').value;
+  const errEl = document.getElementById('reset-error');
+  errEl.classList.remove('show');
+
+  if(!newPassword || newPassword.length < 8){
+    errEl.textContent = 'Password must be at least 8 characters.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/v1/admin/users/${userId}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ new_password: newPassword })
+    });
+    const data = await res.json();
+    if(!data.ok){
+      errEl.textContent = data.error || 'Failed to reset password.';
+      errEl.classList.add('show');
+      return;
+    }
+    const successEl = document.getElementById('reset-success');
+    successEl.textContent = 'Password reset successfully!';
+    successEl.classList.add('show');
+    setTimeout(closeResetModal, 1200);
+  } catch(err){
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.add('show');
+  }
+}
+
+// ─── SESSION TIMEOUT ──────────────────────────────────────────────────────────
+let sessionTimer;
+function resetSessionTimer(){
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(()=>{
+    alert('Session expired due to inactivity. Please login again.');
+    localStorage.clear();
+    window.location.href = '/login.html';
+  }, 30 * 60 * 1000);
+}
+['click','keypress','mousemove','scroll'].forEach(evt =>
+  document.addEventListener(evt, resetSessionTimer, {passive:true})
+);
+resetSessionTimer();
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+loadUsers();
+</script>
+</body>
+</html>
