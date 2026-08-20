@@ -168,6 +168,48 @@ async function saveMonthlyGlowSnapshot(){
   }
 }
 
+// ─── HOURLY SLA SWEEP ──────────────────────────────────────────────────────
+// Catches silent SLA breaches that no one has touched since they opened.
+// The DB trigger only fires on INSERT/UPDATE of work_orders — if a ticket
+// sits untouched past its deadline, nothing flips its status until this
+// sweep runs. Without this, a breach could go unnoticed and unpenalized
+// until the monthly billing audit finally looks at it.
+async function sweepStaleWorkOrders() {
+  try {
+    const stale = await db.manyOrNone(`
+      UPDATE work_orders
+      SET ticket_status = 'SLA_VIOLATED',
+          days_overdue  = CEIL(EXTRACT(EPOCH FROM (NOW() - sla_deadline)) / 86400.0)
+      WHERE ticket_status IN ('PENDING','ASSIGNED','IN_PROGRESS')
+        AND NOW() > sla_deadline
+      RETURNING work_order_id, pole_id, contractor_id, days_overdue
+    `);
+
+    if (stale && stale.length) {
+      logger.warn('SLA sweep flagged stale work orders', {
+        count: stale.length,
+        work_order_ids: stale.map(s => s.work_order_id),
+      });
+
+      // Broadcast alert for each newly-breached order so live dashboards
+      // reflect it immediately instead of waiting for next poll
+      const { broadcastAlert } = require('../websocket/wsServer');
+      stale.forEach(s => {
+        broadcastAlert('SLA_BREACH_DETECTED', {
+          work_order_id: s.work_order_id,
+          pole_id: s.pole_id,
+          days_overdue: s.days_overdue,
+        });
+      });
+    }
+
+    return { swept: stale ? stale.length : 0 };
+  } catch (err) {
+    logger.error('SLA sweep failed', { error: err.message });
+    return { swept: 0, error: err.message };
+  }
+}
+
 async function resetMonthlyCounters() {
   await db.none(`UPDATE contractors SET total_penalty_mtd=0, total_solved_daily=0`);
   logger.info('Monthly counters reset');
@@ -179,14 +221,24 @@ function startBillingCron() {
     logger.info('Billing cron triggered');
     try {
       await resetMonthlyCounters();
-    await runMonthlyBillingAudit();
-    await saveMonthlyGlowSnapshot();
-    await sendMonthlyReport();
+      await runMonthlyBillingAudit();
+      await saveMonthlyGlowSnapshot();
+      await sendMonthlyReport();
     } catch (err) {
       logger.error('Cron billing error', { error: err.message });
     }
   }, { scheduled: true, timezone: 'Asia/Kolkata' });
   logger.info('Billing cron registered', { schedule });
+
+  // Hourly sweep — catches silent SLA breaches between monthly audits
+  const sweepSchedule = process.env.SLA_SWEEP_CRON_SCHEDULE || '0 * * * *';
+  cron.schedule(sweepSchedule, async () => {
+    const result = await sweepStaleWorkOrders();
+    if (result.swept > 0) {
+      logger.info('Hourly SLA sweep complete', { swept: result.swept });
+    }
+  }, { scheduled: true, timezone: 'Asia/Kolkata' });
+  logger.info('SLA sweep cron registered', { schedule: sweepSchedule });
 }
 
 if (require.main === module) {
@@ -195,4 +247,4 @@ if (require.main === module) {
     .catch(e => { console.error(e.message); process.exit(1); });
 }
 
-module.exports = { runMonthlyBillingAudit, calcPenaltyA, calcPenaltyB, startBillingCron };
+module.exports = { runMonthlyBillingAudit, calcPenaltyA, calcPenaltyB, startBillingCron, sweepStaleWorkOrders };
