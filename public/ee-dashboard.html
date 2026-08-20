@@ -65,6 +65,18 @@ tr:hover td{background:rgba(79,195,247,0.05)}
 .sla-item.warning{border-color:rgba(255,171,64,0.4);background:rgba(255,171,64,0.05)}
 .alert-bar{background:rgba(255,82,82,0.1);border:1px solid rgba(255,82,82,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#ff5252;display:none}
 .alert-bar.show{display:flex;align-items:center;gap:8px}
+
+@media (max-width: 768px) {
+  .topbar { flex-wrap: wrap; height: auto; padding: 10px; }
+  .kpi-row { grid-template-columns: repeat(2,1fr) !important; }
+  .nav-tabs { overflow-x: auto; }
+  .nav-tab { font-size: 10px; padding: 6px 10px; white-space: nowrap; }
+  .grid-2, .grid-3 { grid-template-columns: 1fr !important; }
+  #zone-map { height: 250px !important; }
+  table { font-size: 10px; }
+  th, td { padding: 4px 6px !important; }
+}
+
 </style>
 </head>
 <body>
