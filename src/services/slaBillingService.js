@@ -234,9 +234,7 @@ function startBillingCron() {
   const sweepSchedule = process.env.SLA_SWEEP_CRON_SCHEDULE || '0 * * * *';
   cron.schedule(sweepSchedule, async () => {
     const result = await sweepStaleWorkOrders();
-    if (result.swept > 0) {
-      logger.info('Hourly SLA sweep complete', { swept: result.swept });
-    }
+    logger.info('Hourly SLA sweep ran', { swept: result.swept, timestamp: new Date().toISOString() });
   }, { scheduled: true, timezone: 'Asia/Kolkata' });
   logger.info('SLA sweep cron registered', { schedule: sweepSchedule });
 }
