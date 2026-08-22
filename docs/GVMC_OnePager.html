@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GVMC Streetlight Platform — One Pager</title>
+<style>
+@page { size: A4; margin: 14mm 16mm; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;font-size:10.5px;line-height:1.45}
+
+.header{border-bottom:3px solid #0d3b8c;padding-bottom:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-end}
+.header-left .flag{font-size:11px;color:#ff6600;font-weight:700;letter-spacing:0.5px}
+.header-left h1{font-size:19px;color:#0d3b8c;margin-top:3px}
+.header-left .sub{font-size:11px;color:#546e8a;margin-top:2px}
+.header-right{text-align:right;font-size:9px;color:#90a4ae}
+.header-right .badge{display:inline-block;background:#e8f0fe;color:#0d3b8c;padding:3px 10px;border-radius:12px;font-size:9px;font-weight:700;margin-bottom:3px}
+
+.philosophy{background:#f0f6ff;border-left:4px solid #0d3b8c;padding:9px 14px;margin-bottom:14px;font-size:10.5px}
+.philosophy b{color:#0d3b8c}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px}
+
+.section-title{font-size:11px;font-weight:700;color:#0d3b8c;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1.5px solid #cbd9f0;padding-bottom:4px;margin-bottom:8px}
+
+ul.feat{list-style:none}
+ul.feat li{padding:3px 0 3px 16px;position:relative;font-size:10px}
+ul.feat li::before{content:'✓';position:absolute;left:0;color:#1a9850;font-weight:700}
+
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.stat-box{background:#f7f9fc;border:1px solid #dde5f0;border-radius:6px;padding:8px;text-align:center}
+.stat-box .val{font-size:16px;font-weight:700;color:#0d3b8c}
+.stat-box .lbl{font-size:8px;color:#667;margin-top:2px}
+
+.workflow{background:#fbfcfe;border:1px solid #dde5f0;border-radius:6px;padding:10px 12px;margin-bottom:14px}
+.flow-steps{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+.flow-step{text-align:center;font-size:8.5px;color:#333;flex:1}
+.flow-step .n{width:20px;height:20px;border-radius:50%;background:#0d3b8c;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;margin:0 auto 3px}
+.flow-arrow{color:#a0aec0;font-size:12px;margin:0 2px}
+
+.verified-box{background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 12px;margin-bottom:14px}
+.verified-box .title{font-size:10px;font-weight:700;color:#166534;margin-bottom:6px}
+.verified-box ul{list-style:none;columns:2;column-gap:16px}
+.verified-box li{font-size:9px;padding:2px 0 2px 14px;position:relative}
+.verified-box li::before{content:'●';position:absolute;left:0;color:#22c55e;font-size:7px;top:5px}
+
+.roles-table{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:14px}
+.roles-table th{background:#0d3b8c;color:#fff;padding:5px 8px;text-align:left;font-size:8.5px}
+.roles-table td{padding:5px 8px;border-bottom:1px solid #e2e8f0}
+.roles-table tr:nth-child(even) td{background:#f7f9fc}
+
+.demo-note{background:#fff8e1;border:1px solid #ffca28;border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:9px;color:#5d4037}
+.demo-note b{color:#e65100}
+
+.footer{border-top:2px solid #0d3b8c;padding-top:8px;margin-top:10px;display:flex;justify-content:space-between;font-size:8.5px;color:#667}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="flag">GOVERNMENT OF ANDHRA PRADESH</div>
+    <h1>Municipal Infrastructure Asset Intelligence Platform</h1>
+    <div class="sub">Streetlight Module — Greater Visakhapatnam Municipal Corporation</div>
+  </div>
+  <div class="header-right">
+    <div class="badge">Pilot Proposal · v1.0</div><br>
+    streetlight-platform.onrender.com
+  </div>
+</div>
+
+<div class="philosophy">
+  <b>Platform Philosophy:</b> Decision Support System — not a Decision Making System. The platform detects, analyzes, and recommends. Final decisions on penalties, fault verification, and closure remain with authorized GVMC officials at every step.
+</div>
+
+<div class="stat-row">
+  <div class="stat-box"><div class="val">2,00,000</div><div class="lbl">Poles in Scope</div></div>
+  <div class="stat-box"><div class="val">7 / 98</div><div class="lbl">Zones / Wards</div></div>
+  <div class="stat-box"><div class="val">48 hrs</div><div class="lbl">SLA Resolution Window</div></div>
+  <div class="stat-box"><div class="val">6</div><div class="lbl">Role-Based Dashboards</div></div>
+</div>
+
+<div class="workflow">
+  <div class="section-title" style="border:none;margin-bottom:0">How a Fault Is Handled — End to End</div>
+  <div class="flow-steps">
+    <div class="flow-step"><div class="n">1</div>Fault Detected</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="n">2</div>Work Order Auto-Created</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="n">3</div>Assigned to Contractor</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="n">4</div>48h SLA Clock Starts</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="n">5</div>Resolved or Breach Flagged</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="n">6</div>Penalty Recommended</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="n">7</div>Monthly Report to Officials</div>
+  </div>
+</div>
+
+<div class="verified-box">
+  <div class="title">✅ Production-Tested — Not Just Demonstrated</div>
+  <ul>
+    <li>Real fault detection from live telemetry values</li>
+    <li>Automatic contractor assignment by zone</li>
+    <li>Database-enforced 48-hour SLA deadline</li>
+    <li>Hourly sweep catches silently missed breaches</li>
+    <li>Role-based data isolation between contractors</li>
+    <li>Field engineer status-change restrictions enforced</li>
+    <li>Duplicate-fault suppression on repeat readings</li>
+    <li>Full audit trail on every login and data change</li>
+  </ul>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="section-title">Core Capabilities</div>
+    <ul class="feat">
+      <li>Live zone map with fault markers &amp; glow-rate overlay</li>
+      <li>5-layer Component Inspector per pole (location, electrical, ticket, history, smart-city port)</li>
+      <li>Monthly glow-rate tracking with 95% minimum / 97% target threshold alerts</li>
+      <li>Dual penalty formula — energy-loss basis vs. demurrage, higher applies</li>
+      <li>One-click Excel export &amp; auto-generated monthly PDF-style report</li>
+      <li>Mobile-responsive field engineer app for on-ground crews</li>
+      <li>30-minute session timeout, brute-force login protection</li>
+    </ul>
+  </div>
+  <div>
+    <div class="section-title">Role-Based Access</div>
+    <table class="roles-table">
+      <tr><th>Role</th><th>Sees</th></tr>
+      <tr><td>Super Admin</td><td>Everything + user management</td></tr>
+      <tr><td>Commissioner</td><td>City-wide, all zones, reports</td></tr>
+      <tr><td>Executive Engineer</td><td>Their zone only</td></tr>
+      <tr><td>Contractor</td><td>Own work orders &amp; billing only</td></tr>
+      <tr><td>Field Engineer</td><td>Assigned jobs, mobile-first</td></tr>
+      <tr><td>Read Only / Audit</td><td>View only, no exports</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="demo-note">
+  <b>Note on this demo:</b> The dashboards you'll see today are populated with consistent illustrative data, since no real pole inventory or CCMS telemetry has been connected yet. The backend workflow behind those screens — fault detection, work-order creation, SLA enforcement, contractor assignment — has been independently tested against the live production database and works correctly end to end. Once GVMC's actual pole register and CCMS data are available, the same tested pipeline picks it up with no redesign required.
+</div>
+
+<div class="footer">
+  <span>Greater Visakhapatnam Municipal Corporation · Smart City Streetlight Monitoring Platform</span>
+  <span>Contact: [Your Name / Team] · streetlight-platform.onrender.com</span>
+</div>
+
+</body>
+</html>
