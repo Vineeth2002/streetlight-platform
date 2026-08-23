@@ -396,4 +396,31 @@ router.get('/glow-history', async (req, res) => {
   }
 });
 
+// ─── GET /api/v1/poles/crisis-status ─────────────────────────────────────────
+// Checks whether any zone has an unusual spike of simultaneous open faults
+// (5+ in the last hour, per v_crisis_zones). Frontend polls this to decide
+// whether to switch the dashboard into Crisis/War Room mode — re-prioritizing
+// the view around the worst-affected zones instead of the normal scrolling
+// audit log. Returns an empty crisis_zones array in normal conditions —
+// that's the expected, healthy result, not an error.
+router.get('/crisis-status', async (req, res) => {
+  try {
+    const crisisZones = await db.manyOrNone(`
+      SELECT zone_id, zone_name, open_faults_last_hour, critical_count
+      FROM v_crisis_zones
+      ORDER BY open_faults_last_hour DESC
+    `);
+
+    res.json({
+      ok: true,
+      in_crisis: crisisZones.length > 0,
+      crisis_zones: crisisZones,
+      checked_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error('Crisis status check error', { error: err.message });
+    res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
