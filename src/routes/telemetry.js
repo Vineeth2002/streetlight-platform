@@ -111,7 +111,7 @@ router.post('/node', async (req, res) => {
     let workOrder = null;
 
     if (pole) {
-      diagnosis = diagnose({
+      diagnosis = await diagnose({
         poleNumber:  value.pole_number,
         voltageRms:  value.voltage_rms,
         currentRms:  value.current_rms,
@@ -121,12 +121,15 @@ router.post('/node', async (req, res) => {
         wiringType:  pole.wiring_type,
       });
 
-      // Auto create work order only for confirmed faults
+      // Auto create work order only for recommendations that warrant one —
+      // this still auto-creates a TICKET, but the ticket now carries a
+      // confidence score and multiple possible causes for a human to
+      // review, rather than stating a single fault as settled fact.
       if (diagnosis.createWorkOrder && pole.pole_id) {
         try {
           workOrder = await createAutoWorkOrder(
             pole.pole_id,
-            diagnosis.faultCategory,
+            diagnosis,
             diagnosis.message
           );
         } catch (woErr) {
@@ -140,9 +143,10 @@ router.post('/node', async (req, res) => {
       // Broadcast alert for critical faults
       if (diagnosis.severity === 'CRITICAL') {
         broadcastAlert('FAULT_CRITICAL', {
-          pole_number:    value.pole_number,
-          fault_category: diagnosis.faultCategory,
-          message:        diagnosis.message,
+          pole_number:      value.pole_number,
+          recommended_fault: diagnosis.recommendedFault,
+          confidence_pct:    diagnosis.confidencePct,
+          message:           diagnosis.message,
         });
       }
     }
