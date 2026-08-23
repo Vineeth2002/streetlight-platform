@@ -366,7 +366,7 @@ router.patch('/:id/verify',
           verified_fault,
           correctPrediction,
           wo.model_version,
-          wo.possible_causes,
+          JSON.stringify(wo.possible_causes),
           req.user.user_id,
         ]
       );
