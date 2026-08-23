@@ -308,4 +308,159 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+// ─── POST /api/v1/work-orders/:id/verify ─────────────────────────────────────
+// Human verification of a system recommendation. This is the step that
+// closes the loop: an engineer who actually inspected the pole confirms
+// the recommended fault was correct, or corrects it to what they really
+// found. Either way, the outcome is permanently logged to fault_feedback —
+// this is the raw material any future real learning system would train on.
+// Never overwrites recommended_fault — verified_fault is stored separately
+// so we can always compare what the system guessed vs. what was true.
+router.patch('/:id/verify',
+  requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE', 'FIELD_ENGINEER'),
+  async (req, res) => {
+    const workOrderId = parseInt(req.params.id);
+    const { verified_fault } = req.body;
+
+    if (!verified_fault) {
+      return res.status(400).json({ ok: false, error: 'verified_fault is required' });
+    }
+
+    try {
+      const wo = await db.oneOrNone(
+        `SELECT work_order_id, recommended_fault, confidence_pct,
+                possible_causes, model_version
+         FROM work_orders WHERE work_order_id = $1`,
+        [workOrderId]
+      );
+
+      if (!wo) return res.status(404).json({ ok: false, error: 'Work order not found' });
+
+      if (!wo.recommended_fault) {
+        return res.status(400).json({
+          ok: false,
+          error: 'This work order has no system recommendation to verify — it may predate the recommendation engine, or was manually created'
+        });
+      }
+
+      const correctPrediction = wo.recommended_fault === verified_fault;
+
+      // Update the work order with the human-confirmed answer
+      await db.none(
+        `UPDATE work_orders
+         SET verified_fault = $1, verified_by = $2, verified_at = NOW()
+         WHERE work_order_id = $3`,
+        [verified_fault, req.user.user_id, workOrderId]
+      );
+
+      // Log to fault_feedback — the permanent, never-deleted training record
+      await db.none(
+        `INSERT INTO fault_feedback
+           (work_order_id, recommended_fault, confidence_pct, verified_fault,
+            correct_prediction, model_version, evidence, reviewed_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          workOrderId,
+          wo.recommended_fault,
+          wo.confidence_pct,
+          verified_fault,
+          correctPrediction,
+          wo.model_version,
+          wo.possible_causes,
+          req.user.user_id,
+        ]
+      );
+
+      await auditLog(req.user.user_id, 'WORK_ORDER_VERIFIED', 'work_orders',
+        workOrderId, true,
+        { recommended: wo.recommended_fault, verified: verified_fault, correct: correctPrediction },
+        req);
+
+      logger.info('Work order verified', {
+        work_order_id: workOrderId,
+        recommended: wo.recommended_fault,
+        verified: verified_fault,
+        correct: correctPrediction,
+      });
+
+      res.json({
+        ok: true,
+        message: correctPrediction
+          ? 'Verified — system recommendation was correct'
+          : 'Verified — system recommendation was corrected',
+        recommended_fault: wo.recommended_fault,
+        verified_fault,
+        correct_prediction: correctPrediction,
+      });
+    } catch (err) {
+      logger.error('Verify work order error', { error: err.message });
+      res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+  }
+);
+
+// ─── GET /api/v1/work-orders/accuracy/summary ────────────────────────────────
+// Rolling accuracy report — how often has the recommendation engine been
+// right so far, broken down by fault type and model version. Empty/zero
+// results are expected and correct until real verifications accumulate —
+// this is honest reporting, not a placeholder to hide.
+router.get('/accuracy/summary',
+  requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE'),
+  async (req, res) => {
+    try {
+      const overall = await db.oneOrNone(`
+        SELECT
+          COUNT(*) AS total_verified,
+          COUNT(*) FILTER (WHERE correct_prediction) AS correct_count,
+          ROUND(
+            COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC
+            / NULLIF(COUNT(*), 0) * 100, 1
+          ) AS accuracy_pct
+        FROM fault_feedback
+      `);
+
+      const byFaultType = await db.manyOrNone(`
+        SELECT
+          recommended_fault,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE correct_prediction) AS correct,
+          ROUND(
+            COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC
+            / NULLIF(COUNT(*), 0) * 100, 1
+          ) AS accuracy_pct
+        FROM fault_feedback
+        GROUP BY recommended_fault
+        ORDER BY total DESC
+      `);
+
+      const byModelVersion = await db.manyOrNone(`
+        SELECT
+          model_version,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE correct_prediction) AS correct,
+          ROUND(
+            COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC
+            / NULLIF(COUNT(*), 0) * 100, 1
+          ) AS accuracy_pct
+        FROM fault_feedback
+        GROUP BY model_version
+        ORDER BY model_version
+      `);
+
+      res.json({
+        ok: true,
+        overall: overall || { total_verified: 0, correct_count: 0, accuracy_pct: null },
+        by_fault_type: byFaultType,
+        by_model_version: byModelVersion,
+        note: overall?.total_verified > 0
+          ? null
+          : 'No verifications logged yet — accuracy figures will populate as field engineers confirm real recommendations.',
+      });
+    } catch (err) {
+      logger.error('Accuracy summary error', { error: err.message });
+      res.status(500).json({ ok: false, error: 'Internal server error' });
+    }
+  }
+);
+
 module.exports = router;
