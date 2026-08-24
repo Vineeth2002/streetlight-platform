@@ -397,24 +397,111 @@ router.get('/glow-history', async (req, res) => {
 });
 
 // ─── GET /api/v1/poles/crisis-status ─────────────────────────────────────────
-// Checks whether any zone has an unusual spike of simultaneous open faults
-// (5+ in the last hour, per v_crisis_zones). Frontend polls this to decide
-// whether to switch the dashboard into Crisis/War Room mode — re-prioritizing
-// the view around the worst-affected zones instead of the normal scrolling
-// audit log. Returns an empty crisis_zones array in normal conditions —
-// that's the expected, healthy result, not an error.
+// Checks ALL crisis patterns and returns a combined, tiered assessment.
+// Each pattern is independently sufficient — a single life-safety hazard
+// or comms blackout cluster triggers War Room even if zone-wide percentages
+// look normal. This reflects real disaster response: you don't wait for
+// multiple conditions to stack before treating a downed wire seriously.
 router.get('/crisis-status', async (req, res) => {
   try {
-    const crisisZones = await db.manyOrNone(`
-      SELECT zone_id, zone_name, open_faults_last_hour, critical_count
-      FROM v_crisis_zones
-      ORDER BY open_faults_last_hour DESC
-    `);
+    const [
+      zoneSeverity,
+      cityWideCrisis,
+      lifeSafety,
+      sustainedDecline,
+      commsBlackout,
+    ] = await Promise.all([
+      db.manyOrNone(`SELECT * FROM v_zone_severity WHERE severity_tier IN ('ELEVATED','SEVERE') ORDER BY pct_zone_affected_1hr DESC`),
+      db.manyOrNone(`SELECT * FROM v_city_wide_crisis`),
+      db.manyOrNone(`SELECT * FROM v_life_safety_hazards ORDER BY minutes_open ASC`),
+      db.manyOrNone(`SELECT * FROM v_sustained_decline ORDER BY faults_last_6hr DESC`),
+      db.manyOrNone(`SELECT * FROM v_communication_blackout ORDER BY pct_ward_silent DESC`),
+    ]);
+
+    // ── Determine overall tier — worst pattern wins ──
+    // CATASTROPHIC beats everything: city-wide event (Hudhud pattern)
+    // CRITICAL: any life-safety hazard OR any comms blackout cluster —
+    //   these are independently serious regardless of scale
+    // SEVERE: at least one zone individually at SEVERE tier (Titli pattern)
+    // ELEVATED: zones showing early warning signs, worth watching
+    // NORMAL: none of the above
+    let overallTier = 'NORMAL';
+    const activePatterns = [];
+
+    if (lifeSafety.length > 0) {
+      overallTier = 'CRITICAL';
+      activePatterns.push({
+        pattern: 'LIFE_SAFETY_HAZARD',
+        severity: 'CRITICAL',
+        summary: `${lifeSafety.length} unresolved downed/exposed-wire hazard(s) — public safety risk`,
+        detail: lifeSafety,
+      });
+    }
+
+    if (commsBlackout.length > 0) {
+      overallTier = 'CRITICAL';
+      activePatterns.push({
+        pattern: 'COMMUNICATION_BLACKOUT',
+        severity: 'CRITICAL',
+        summary: `${commsBlackout.length} ward(s) have lost communication with a cluster of junction boxes — visibility lost, not just faults`,
+        detail: commsBlackout,
+      });
+    }
+
+    if (cityWideCrisis.length > 0) {
+      overallTier = 'CATASTROPHIC';
+      activePatterns.push({
+        pattern: 'CITY_WIDE_CATASTROPHIC',
+        severity: 'CATASTROPHIC',
+        summary: `${cityWideCrisis[0].zones_at_severe_tier} zones simultaneously at severe tier — city-wide event`,
+        detail: cityWideCrisis,
+      });
+    }
+
+    const severeZones = zoneSeverity.filter(z => z.severity_tier === 'SEVERE');
+    if (severeZones.length > 0 && overallTier !== 'CATASTROPHIC') {
+      overallTier = 'SEVERE';
+    }
+    if (severeZones.length > 0) {
+      activePatterns.push({
+        pattern: 'ZONE_SEVERE',
+        severity: 'SEVERE',
+        summary: `${severeZones.length} zone(s) individually at severe fault levels`,
+        detail: severeZones,
+      });
+    }
+
+    const elevatedZones = zoneSeverity.filter(z => z.severity_tier === 'ELEVATED');
+    if (elevatedZones.length > 0 && overallTier === 'NORMAL') {
+      overallTier = 'ELEVATED';
+    }
+    if (elevatedZones.length > 0) {
+      activePatterns.push({
+        pattern: 'ZONE_ELEVATED',
+        severity: 'ELEVATED',
+        summary: `${elevatedZones.length} zone(s) showing early warning signs`,
+        detail: elevatedZones,
+      });
+    }
+
+    if (sustainedDecline.length > 0) {
+      activePatterns.push({
+        pattern: 'SUSTAINED_DECLINE',
+        severity: 'WATCH',
+        summary: `${sustainedDecline.length} zone(s) showing gradual multi-hour degradation`,
+        detail: sustainedDecline,
+      });
+    }
+
+    // War Room UI should trigger for CRITICAL, SEVERE, or CATASTROPHIC —
+    // ELEVATED and WATCH are shown as warnings but don't take over the screen
+    const warRoomActive = ['CRITICAL', 'SEVERE', 'CATASTROPHIC'].includes(overallTier);
 
     res.json({
       ok: true,
-      in_crisis: crisisZones.length > 0,
-      crisis_zones: crisisZones,
+      overall_tier: overallTier,
+      war_room_active: warRoomActive,
+      active_patterns: activePatterns,
       checked_at: new Date().toISOString(),
     });
   } catch (err) {
