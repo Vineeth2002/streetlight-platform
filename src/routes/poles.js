@@ -160,7 +160,7 @@ router.get('/crisis-status', async (req, res) => {
     }
 
     const severeZones = zoneSeverity.filter(z => z.severity_tier === 'SEVERE');
-    if (severeZones.length > 0 && overallTier !== 'CATASTROPHIC') {
+    if (severeZones.length > 0 && !['CATASTROPHIC', 'CRITICAL'].includes(overallTier)) {
       overallTier = 'SEVERE';
     }
     if (severeZones.length > 0) {
