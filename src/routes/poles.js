@@ -61,6 +61,154 @@ router.get('/zones', async (req, res) => {
   }
 });
 
+// ─── GET /api/v1/poles/glow-history ──────────────────────────────────────────
+router.get('/glow-history', async (req, res) => {
+  try {
+    const months = parseInt(req.query.months) || 12;
+    const zoneId = req.query.zone_id;
+
+    let snapshots = await db.manyOrNone(`
+      SELECT snapshot_month, zone_id, zone_name,
+             glow_rate_pct, target_glow_rate,
+             met_target, company_name
+      FROM monthly_glow_snapshots
+      WHERE ($1::int IS NULL OR zone_id = $1)
+      ORDER BY snapshot_month DESC
+      LIMIT $2
+    `, [zoneId || null, months * 7]);
+
+    if(!snapshots || !snapshots.length){
+      const current = await db.manyOrNone(`
+        SELECT zone_id, zone_name,
+               glow_rate_pct,
+               total_poles, operational_poles
+        FROM v_zone_glow_rates
+        ORDER BY zone_name
+      `);
+      return res.json({
+        ok: true,
+        has_history: false,
+        current_only: true,
+        data: current
+      });
+    }
+
+    res.json({ ok: true, has_history: true, data: snapshots });
+  } catch(err){
+    logger.error('Glow history error', { error: err.message });
+    res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/v1/poles/crisis-status ─────────────────────────────────────────
+// Checks ALL crisis patterns and returns a combined, tiered assessment.
+// Each pattern is independently sufficient — a single life-safety hazard
+// or comms blackout cluster triggers War Room even if zone-wide percentages
+// look normal. This reflects real disaster response: you don't wait for
+// multiple conditions to stack before treating a downed wire seriously.
+//
+// IMPORTANT: This route is defined BEFORE /:id below, so Express matches
+// this exact path first — otherwise "crisis-status" would be caught by
+// the /:id route and treated as an invalid pole ID.
+router.get('/crisis-status', async (req, res) => {
+  try {
+    const [
+      zoneSeverity,
+      cityWideCrisis,
+      lifeSafety,
+      sustainedDecline,
+      commsBlackout,
+    ] = await Promise.all([
+      db.manyOrNone(`SELECT * FROM v_zone_severity WHERE severity_tier IN ('ELEVATED','SEVERE') ORDER BY pct_zone_affected_1hr DESC`),
+      db.manyOrNone(`SELECT * FROM v_city_wide_crisis`),
+      db.manyOrNone(`SELECT * FROM v_life_safety_hazards ORDER BY minutes_open ASC`),
+      db.manyOrNone(`SELECT * FROM v_sustained_decline ORDER BY faults_last_6hr DESC`),
+      db.manyOrNone(`SELECT * FROM v_communication_blackout ORDER BY pct_ward_silent DESC`),
+    ]);
+
+    let overallTier = 'NORMAL';
+    const activePatterns = [];
+
+    if (lifeSafety.length > 0) {
+      overallTier = 'CRITICAL';
+      activePatterns.push({
+        pattern: 'LIFE_SAFETY_HAZARD',
+        severity: 'CRITICAL',
+        summary: `${lifeSafety.length} unresolved downed/exposed-wire hazard(s) — public safety risk`,
+        detail: lifeSafety,
+      });
+    }
+
+    if (commsBlackout.length > 0) {
+      overallTier = 'CRITICAL';
+      activePatterns.push({
+        pattern: 'COMMUNICATION_BLACKOUT',
+        severity: 'CRITICAL',
+        summary: `${commsBlackout.length} ward(s) have lost communication with a cluster of junction boxes — visibility lost, not just faults`,
+        detail: commsBlackout,
+      });
+    }
+
+    if (cityWideCrisis.length > 0) {
+      overallTier = 'CATASTROPHIC';
+      activePatterns.push({
+        pattern: 'CITY_WIDE_CATASTROPHIC',
+        severity: 'CATASTROPHIC',
+        summary: `${cityWideCrisis[0].zones_at_severe_tier} zones simultaneously at severe tier — city-wide event`,
+        detail: cityWideCrisis,
+      });
+    }
+
+    const severeZones = zoneSeverity.filter(z => z.severity_tier === 'SEVERE');
+    if (severeZones.length > 0 && overallTier !== 'CATASTROPHIC') {
+      overallTier = 'SEVERE';
+    }
+    if (severeZones.length > 0) {
+      activePatterns.push({
+        pattern: 'ZONE_SEVERE',
+        severity: 'SEVERE',
+        summary: `${severeZones.length} zone(s) individually at severe fault levels`,
+        detail: severeZones,
+      });
+    }
+
+    const elevatedZones = zoneSeverity.filter(z => z.severity_tier === 'ELEVATED');
+    if (elevatedZones.length > 0 && overallTier === 'NORMAL') {
+      overallTier = 'ELEVATED';
+    }
+    if (elevatedZones.length > 0) {
+      activePatterns.push({
+        pattern: 'ZONE_ELEVATED',
+        severity: 'ELEVATED',
+        summary: `${elevatedZones.length} zone(s) showing early warning signs`,
+        detail: elevatedZones,
+      });
+    }
+
+    if (sustainedDecline.length > 0) {
+      activePatterns.push({
+        pattern: 'SUSTAINED_DECLINE',
+        severity: 'WATCH',
+        summary: `${sustainedDecline.length} zone(s) showing gradual multi-hour degradation`,
+        detail: sustainedDecline,
+      });
+    }
+
+    const warRoomActive = ['CRITICAL', 'SEVERE', 'CATASTROPHIC'].includes(overallTier);
+
+    res.json({
+      ok: true,
+      overall_tier: overallTier,
+      war_room_active: warRoomActive,
+      active_patterns: activePatterns,
+      checked_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error('Crisis status check error', { error: err.message });
+    res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
+});
+
 // ─── GET /api/v1/poles — List poles ──────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
@@ -75,7 +223,6 @@ router.get('/', async (req, res) => {
     const params     = [];
     let   idx        = 1;
 
-    // EE sees only their zone
     if (req.user.role === 'GVMC_EE' && req.user.zone_id) {
       conditions.push(`w.zone_id = $${idx++}`);
       params.push(req.user.zone_id);
@@ -150,7 +297,6 @@ router.get('/:id', async (req, res) => {
 
     if (!pole) return res.status(404).json({ ok: false, error: 'Pole not found' });
 
-    // EE can only see their zone
     if (req.user.role === 'GVMC_EE' &&
         req.user.zone_id &&
         pole.zone_id !== req.user.zone_id) {
@@ -172,7 +318,6 @@ router.post('/',
     if (error) return res.status(400).json({ ok: false, error: error.details[0].message });
 
     try {
-      // Check pole number uniqueness
       const existing = await db.oneOrNone(
         'SELECT pole_id FROM poles WHERE pole_number = $1', [value.pole_number]
       );
@@ -182,7 +327,6 @@ router.post('/',
         });
       }
 
-      // Verify cabinet exists
       const cabinet = await db.oneOrNone(
         'SELECT cabinet_id FROM junction_boxes WHERE cabinet_id = $1',
         [value.cabinet_id]
@@ -301,7 +445,6 @@ router.delete('/:id',
         return res.status(400).json({ ok: false, error: 'Pole already decommissioned' });
       }
 
-      // Soft delete — never hard delete poles
       await db.none(
         `UPDATE poles SET current_status = 'DECOMMISSIONED' WHERE pole_id = $1`,
         [parseInt(req.params.id)]
@@ -351,161 +494,6 @@ router.get('/search/:query', async (req, res) => {
     res.json({ ok: true, count: poles.length, data: poles });
   } catch (err) {
     logger.error('Pole search error', { error: err.message });
-    res.status(500).json({ ok: false, error: 'Internal server error' });
-  }
-});
-
-// ─── GET /api/v1/poles/glow-history ──────────────────────────────────────────
-router.get('/glow-history', async (req, res) => {
-  try {
-    const months = parseInt(req.query.months) || 12;
-    const zoneId = req.query.zone_id;
-
-    // Get snapshots if they exist
-    let snapshots = await db.manyOrNone(`
-      SELECT snapshot_month, zone_id, zone_name,
-             glow_rate_pct, target_glow_rate,
-             met_target, company_name
-      FROM monthly_glow_snapshots
-      WHERE ($1::int IS NULL OR zone_id = $1)
-      ORDER BY snapshot_month DESC
-      LIMIT $2
-    `, [zoneId || null, months * 7]);
-
-    // If no snapshots yet return current data
-    if(!snapshots || !snapshots.length){
-      const current = await db.manyOrNone(`
-        SELECT zone_id, zone_name,
-               glow_rate_pct,
-               total_poles, operational_poles
-        FROM v_zone_glow_rates
-        ORDER BY zone_name
-      `);
-      return res.json({
-        ok: true,
-        has_history: false,
-        current_only: true,
-        data: current
-      });
-    }
-
-    res.json({ ok: true, has_history: true, data: snapshots });
-  } catch(err){
-    logger.error('Glow history error', { error: err.message });
-    res.status(500).json({ ok: false, error: 'Internal server error' });
-  }
-});
-
-// ─── GET /api/v1/poles/crisis-status ─────────────────────────────────────────
-// Checks ALL crisis patterns and returns a combined, tiered assessment.
-// Each pattern is independently sufficient — a single life-safety hazard
-// or comms blackout cluster triggers War Room even if zone-wide percentages
-// look normal. This reflects real disaster response: you don't wait for
-// multiple conditions to stack before treating a downed wire seriously.
-router.get('/crisis-status', async (req, res) => {
-  try {
-    const [
-      zoneSeverity,
-      cityWideCrisis,
-      lifeSafety,
-      sustainedDecline,
-      commsBlackout,
-    ] = await Promise.all([
-      db.manyOrNone(`SELECT * FROM v_zone_severity WHERE severity_tier IN ('ELEVATED','SEVERE') ORDER BY pct_zone_affected_1hr DESC`),
-      db.manyOrNone(`SELECT * FROM v_city_wide_crisis`),
-      db.manyOrNone(`SELECT * FROM v_life_safety_hazards ORDER BY minutes_open ASC`),
-      db.manyOrNone(`SELECT * FROM v_sustained_decline ORDER BY faults_last_6hr DESC`),
-      db.manyOrNone(`SELECT * FROM v_communication_blackout ORDER BY pct_ward_silent DESC`),
-    ]);
-
-    // ── Determine overall tier — worst pattern wins ──
-    // CATASTROPHIC beats everything: city-wide event (Hudhud pattern)
-    // CRITICAL: any life-safety hazard OR any comms blackout cluster —
-    //   these are independently serious regardless of scale
-    // SEVERE: at least one zone individually at SEVERE tier (Titli pattern)
-    // ELEVATED: zones showing early warning signs, worth watching
-    // NORMAL: none of the above
-    let overallTier = 'NORMAL';
-    const activePatterns = [];
-
-    if (lifeSafety.length > 0) {
-      overallTier = 'CRITICAL';
-      activePatterns.push({
-        pattern: 'LIFE_SAFETY_HAZARD',
-        severity: 'CRITICAL',
-        summary: `${lifeSafety.length} unresolved downed/exposed-wire hazard(s) — public safety risk`,
-        detail: lifeSafety,
-      });
-    }
-
-    if (commsBlackout.length > 0) {
-      overallTier = 'CRITICAL';
-      activePatterns.push({
-        pattern: 'COMMUNICATION_BLACKOUT',
-        severity: 'CRITICAL',
-        summary: `${commsBlackout.length} ward(s) have lost communication with a cluster of junction boxes — visibility lost, not just faults`,
-        detail: commsBlackout,
-      });
-    }
-
-    if (cityWideCrisis.length > 0) {
-      overallTier = 'CATASTROPHIC';
-      activePatterns.push({
-        pattern: 'CITY_WIDE_CATASTROPHIC',
-        severity: 'CATASTROPHIC',
-        summary: `${cityWideCrisis[0].zones_at_severe_tier} zones simultaneously at severe tier — city-wide event`,
-        detail: cityWideCrisis,
-      });
-    }
-
-    const severeZones = zoneSeverity.filter(z => z.severity_tier === 'SEVERE');
-    if (severeZones.length > 0 && overallTier !== 'CATASTROPHIC') {
-      overallTier = 'SEVERE';
-    }
-    if (severeZones.length > 0) {
-      activePatterns.push({
-        pattern: 'ZONE_SEVERE',
-        severity: 'SEVERE',
-        summary: `${severeZones.length} zone(s) individually at severe fault levels`,
-        detail: severeZones,
-      });
-    }
-
-    const elevatedZones = zoneSeverity.filter(z => z.severity_tier === 'ELEVATED');
-    if (elevatedZones.length > 0 && overallTier === 'NORMAL') {
-      overallTier = 'ELEVATED';
-    }
-    if (elevatedZones.length > 0) {
-      activePatterns.push({
-        pattern: 'ZONE_ELEVATED',
-        severity: 'ELEVATED',
-        summary: `${elevatedZones.length} zone(s) showing early warning signs`,
-        detail: elevatedZones,
-      });
-    }
-
-    if (sustainedDecline.length > 0) {
-      activePatterns.push({
-        pattern: 'SUSTAINED_DECLINE',
-        severity: 'WATCH',
-        summary: `${sustainedDecline.length} zone(s) showing gradual multi-hour degradation`,
-        detail: sustainedDecline,
-      });
-    }
-
-    // War Room UI should trigger for CRITICAL, SEVERE, or CATASTROPHIC —
-    // ELEVATED and WATCH are shown as warnings but don't take over the screen
-    const warRoomActive = ['CRITICAL', 'SEVERE', 'CATASTROPHIC'].includes(overallTier);
-
-    res.json({
-      ok: true,
-      overall_tier: overallTier,
-      war_room_active: warRoomActive,
-      active_patterns: activePatterns,
-      checked_at: new Date().toISOString(),
-    });
-  } catch (err) {
-    logger.error('Crisis status check error', { error: err.message });
     res.status(500).json({ ok: false, error: 'Internal server error' });
   }
 });
