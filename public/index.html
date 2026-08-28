@@ -219,6 +219,52 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
 </head>
 <body>
 
+  <!-- ═══════════════════════════════════════════════════════════════════
+     WAR ROOM — FULL SCREEN TAKEOVER
+     This is NOT a dismissible banner. When active, it replaces the
+     entire normal dashboard. It reflects real system state and exits
+     automatically only when the underlying crisis genuinely clears
+     (with a stabilization delay — see exitWarRoom logic below).
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="warroom-overlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#0a0000;overflow-y:auto;font-family:'Segoe UI',sans-serif">
+  <div style="background:linear-gradient(135deg,#4a0000,#8b0000);border-bottom:3px solid #ff1744;padding:16px 24px;position:sticky;top:0;z-index:10">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div id="warroom-tier-label" style="font-size:22px;font-weight:800;color:#fff;letter-spacing:1px;display:flex;align-items:center;gap:10px">
+          <span id="warroom-pulse" style="width:14px;height:14px;border-radius:50%;background:#ff1744;display:inline-block;animation:warroom-pulse 1s infinite"></span>
+          WAR ROOM ACTIVE
+        </div>
+        <div id="warroom-subtitle" style="font-size:12px;color:#ffcdd2;margin-top:4px">Emergency response mode — normal dashboard suspended</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:#ffab91">Last checked</div>
+        <div id="warroom-last-checked" style="font-size:12px;color:#fff;font-weight:600">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:20px 24px;max-width:1400px;margin:0 auto">
+    <div id="warroom-patterns" style="display:flex;flex-direction:column;gap:14px"></div>
+  </div>
+
+  <div style="text-align:center;padding:16px;color:#ffab91;font-size:11px;border-top:1px solid rgba(255,255,255,0.1);margin-top:20px">
+    This screen updates automatically every 15 seconds during an active crisis. It will return to the normal dashboard only after conditions have genuinely stabilized.
+  </div>
+</div>
+
+<style>
+@keyframes warroom-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.3)} }
+.wr-pattern-card{background:rgba(255,255,255,0.04);border-radius:10px;padding:16px 18px;border-left:5px solid}
+.wr-pattern-card.tier-CRITICAL{border-color:#ff1744;background:rgba(255,23,68,0.08)}
+.wr-pattern-card.tier-CATASTROPHIC{border-color:#ff1744;background:rgba(255,23,68,0.15)}
+.wr-pattern-card.tier-SEVERE{border-color:#ff9100;background:rgba(255,145,0,0.08)}
+.wr-pattern-card.tier-ELEVATED{border-color:#ffd600;background:rgba(255,214,0,0.06)}
+.wr-pattern-card.tier-WATCH{border-color:#546e8a;background:rgba(84,110,138,0.06)}
+.wr-pattern-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px}
+.wr-pattern-summary{font-size:12px;color:#ffcdd2;margin-bottom:10px}
+.wr-detail-row{background:rgba(0,0,0,0.25);border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:11px;color:#e0e6ff;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.wr-detail-row b{color:#fff}
+</style>
 <div class="alert-banner" id="alert-banner">
   <span>🚨</span><span id="alert-text"></span>
   <span class="alert-close" onclick="this.parentElement.classList.remove('show')">✕</span>
@@ -1647,9 +1693,115 @@ async function viewReport(){
   }
 })();
 
+// ─── WAR ROOM / CRISIS MODE ───────────────────────────────────────────────────
+// Polls the REAL backend crisis-status endpoint — this checks actual
+// work_orders and junction_boxes in the database, not demo data. With
+// zero real poles connected, this will correctly and honestly report
+// NORMAL always, until real telemetry exists. That is expected, not a bug.
+//
+// DE-ESCALATION RULE: exiting War Room requires the crisis condition to
+// be absent for 3 CONSECUTIVE checks (45 seconds at 15s intervals) before
+// the overlay is removed. A single good reading right after a real
+// disaster does not mean it is over — this avoids dangerous flicker
+// between crisis and normal mode during a genuinely unstable situation.
+let _warRoomConsecutiveClear = 0;
+const WARROOM_CLEAR_THRESHOLD = 3;
+
+const TIER_LABELS = {
+  CATASTROPHIC: 'CATASTROPHIC — CITY-WIDE EVENT',
+  CRITICAL:     'CRITICAL — IMMEDIATE ACTION REQUIRED',
+  SEVERE:       'SEVERE — ZONE-LEVEL EMERGENCY',
+};
+
+function renderWarRoomPattern(p){
+  const rows = (p.detail || []).slice(0, 8).map(d => {
+    // Different detail shapes per pattern type — render what's relevant
+    if(p.pattern === 'LIFE_SAFETY_HAZARD'){
+      return `<div class="wr-detail-row">
+        <span><b>${d.pole_number}</b> — ${d.zone_name}, Ward ${d.ward_number}</span>
+        <span>Open ${d.minutes_open} min</span>
+      </div>`;
+    }
+    if(p.pattern === 'COMMUNICATION_BLACKOUT'){
+      return `<div class="wr-detail-row">
+        <span>Ward ${d.ward_id} (Zone ${d.zone_id})</span>
+        <span><b>${d.silent_box_count}/${d.total_boxes_in_ward}</b> boxes silent (${d.pct_ward_silent}%)</span>
+      </div>`;
+    }
+    if(p.pattern === 'CITY_WIDE_CATASTROPHIC'){
+      return `<div class="wr-detail-row">
+        <span>Zones affected: <b>${(d.affected_zone_names || []).join(', ')}</b></span>
+        <span>Worst: ${d.worst_zone_pct_affected}%</span>
+      </div>`;
+    }
+    if(p.pattern === 'ZONE_SEVERE' || p.pattern === 'ZONE_ELEVATED'){
+      return `<div class="wr-detail-row">
+        <span><b>${d.zone_name}</b></span>
+        <span>${d.poles_faulted_last_hour}/${d.total_poles_in_zone} poles (${d.pct_zone_affected_1hr}%)</span>
+      </div>`;
+    }
+    if(p.pattern === 'SUSTAINED_DECLINE'){
+      return `<div class="wr-detail-row">
+        <span><b>${d.zone_name}</b></span>
+        <span>${d.faults_last_6hr} faults over 6hr (${d.faults_last_1hr} in last hour)</span>
+      </div>`;
+    }
+    return `<div class="wr-detail-row"><span>${JSON.stringify(d)}</span></div>`;
+  }).join('');
+
+  return `<div class="wr-pattern-card tier-${p.severity}">
+    <div class="wr-pattern-title">${p.pattern.replace(/_/g,' ')}</div>
+    <div class="wr-pattern-summary">${p.summary}</div>
+    ${rows}
+  </div>`;
+}
+
+async function checkCrisisStatus(){
+  try {
+    const token = localStorage.getItem('sl_token');
+    const res = await fetch('/api/v1/poles/crisis-status', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if(!data.ok) return;
+
+    const overlay = document.getElementById('warroom-overlay');
+
+    if(data.war_room_active){
+      _warRoomConsecutiveClear = 0;
+
+      const tierLabel = document.getElementById('warroom-tier-label');
+      const subtitle  = document.getElementById('warroom-subtitle');
+      const lastChecked = document.getElementById('warroom-last-checked');
+      const patternsDiv = document.getElementById('warroom-patterns');
+
+      tierLabel.innerHTML = `<span id="warroom-pulse" style="width:14px;height:14px;border-radius:50%;background:#ff1744;display:inline-block;animation:warroom-pulse 1s infinite"></span> ${TIER_LABELS[data.overall_tier] || data.overall_tier}`;
+      subtitle.textContent = `${data.active_patterns.length} active condition(s) detected — normal dashboard suspended until this clears`;
+      lastChecked.textContent = new Date(data.checked_at).toLocaleTimeString('en-IN');
+      patternsDiv.innerHTML = data.active_patterns.map(renderWarRoomPattern).join('');
+
+      overlay.style.display = 'block';
+      document.title = '🔴 WAR ROOM — ' + document.title.replace('🔴 WAR ROOM — ', '');
+    } else {
+      // Require sustained clear readings before exiting — avoid flicker
+      _warRoomConsecutiveClear++;
+      if(_warRoomConsecutiveClear >= WARROOM_CLEAR_THRESHOLD){
+        overlay.style.display = 'none';
+        document.title = document.title.replace('🔴 WAR ROOM — ', '');
+      }
+      // else: stay in War Room a bit longer even though this one check
+      // came back clear, since we require sustained stability first
+    }
+  } catch(err){
+    console.error('Crisis status check failed:', err);
+  }
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 renderZones(); renderAuditLog(); updateKPIs();
 setInterval(liveUpdate,10000);
+checkCrisisStatus();
+setInterval(checkCrisisStatus, 15000); // poll every 15 seconds
 
 // ─── SESSION TIMEOUT — 30 minutes inactivity ──────────────────────────────
 let sessionTimer;
