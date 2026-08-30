@@ -18,6 +18,28 @@ Password: password
 
 All passwords: Gvmc@1234
 
+AFTER EVERY FILE PUSH TO GIT SIMILAR EXAMPLE:
+git add src/routes/poles.js
+git commit -m "Fix route ordering — crisis-status must come before /:id"
+git push
+
+AFTER PUSH CHECH THESE 
+Step 1 — Confirm fresh deploy
+curl -s https://streetlight-platform.onrender.com/health
+
+STEP 2 -Fresh deploy confirmed. Get a new token and test crisis-status:
+curl -s -X POST https://streetlight-platform.onrender.com/api/v1/auth/login -H "Content-Type: application/json" -d "{\"email\":\"admin@gvmc.gov.in\",\"password\":\"password\"}"
+
+STEP 3 - Now the real test:
+
+curl -s https://streetlight-platform.onrender.com/api/v1/poles/crisis-status -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJyb2xlIjoiU1VQRVJfQURNSU4iLCJlbWFpbCI6ImFkbWluQGd2bWMuZ292LmluIiwiaWF0IjoxNzg3NjQ3MzE2LCJleHAiOjE3ODc2NzYxMTZ9.vVekatf15d9zhSme87G3SSmMA-cYCMbEQFI10lA2lcE"
+
+curl -s https://streetlight-platform.onrender.com/api/v1/poles/crisis-status -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJyb2xlIjoiU1VQRVJfQURNSU4iLCJlbWFpbCI6ImFkbWluQGd2bWMuZ292LmluIiwiaWF0IjoxNzg3NjQ4MzEzLCJleHAiOjE3ODc2NzcxMTN9.YFR_LEa3A9tz3Oz4XGv6Rf6TvDGPy96Ezypt9iNAbao"
+
+RESULT should now show overall_tier: "NORMAL", war_room_active: false, active_patterns: [].
+these kind of 3 steps check it query depends of files and tasks
+
+
 To Start server->
 taskkill /F /IM node.exe
 npm start
