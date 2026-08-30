@@ -239,6 +239,9 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
       <div style="text-align:right">
         <div style="font-size:10px;color:#ffab91">Last checked</div>
         <div id="warroom-last-checked" style="font-size:12px;color:#fff;font-weight:600">—</div>
+      </div>      
+      <div id="warroom-exit-btn-wrap" style="display:none">
+        <button onclick="simulateCrisisTier('NORMAL')" style="background:rgba(255,255,255,0.15);border:1px solid #fff;color:#fff;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">EXIT SIMULATION</button>
       </div>
     </div>
   </div>
@@ -288,6 +291,12 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
     <div class="kpi-card"><div class="kpi-val kpi-red" id="kpi-penalty">₹4,25,120</div><div class="kpi-lbl">🔴 Penalty MTD</div></div>
     <div class="kpi-card"><div class="kpi-val kpi-amber" id="kpi-sla-breach">12</div><div class="kpi-lbl">SLA Breaches</div></div>
   </div>
+    <div id="admin-warroom-triggers" style="display:none;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,23,68,0.1);border:1px solid rgba(255,23,68,0.3);border-radius:6px">
+      <span style="font-size:9px;color:#ffab91;margin-right:4px">DEMO:</span>
+      <button onclick="simulateCrisisTier('SEVERE')" style="background:#ff9100;border:none;color:#000;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">SEVERE</button>
+      <button onclick="simulateCrisisTier('CRITICAL')" style="background:#ff1744;border:none;color:#fff;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">CRITICAL</button>
+      <button onclick="simulateCrisisTier('CATASTROPHIC')" style="background:#8b0000;border:none;color:#fff;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">CATASTROPHIC</button>
+    </div>
     <button class="btn-signout" onclick="doLogout()">🔓 Sign Out</button>
   </div>
 </div>
@@ -1666,6 +1675,7 @@ async function viewReport(){
     btn.style.cssText = 'background:rgba(255,82,82,0.15);border:1px solid rgba(255,82,82,0.3);color:#ff5252;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;margin-right:4px;';
     btn.onclick = () => window.location.href = '/admin.html';
     document.querySelector('.btn-signout').before(btn);
+    document.getElementById('admin-warroom-triggers').style.display = 'flex';
   }
 
   // COMMISSIONER — add report button in header
@@ -1756,7 +1766,77 @@ function renderWarRoomPattern(p){
   </div>`;
 }
 
+// ─── DEMO / SIMULATION MODE ───────────────────────────────────────────────────
+// Lets SUPER_ADMIN see what War Room actually looks like without needing
+// real disaster data. Purely a display simulation — never touches the DB.
+// Overrides the real polling loop while active; exiting simulation resumes
+// normal real-data polling.
+let _simulationActive = false;
+
+async function simulateCrisisTier(tier){
+  const token = localStorage.getItem('sl_token');
+  if(!token){
+    alert('Please login first');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/v1/poles/crisis-status/simulate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ tier })
+    });
+
+    const data = await res.json();
+    if(!res.ok || !data.ok){
+      alert(data.error || 'Simulation failed');
+      return;
+    }
+
+    if(tier === 'NORMAL'){
+      _simulationActive = false;
+      document.getElementById('warroom-overlay').style.display = 'none';
+      document.getElementById('warroom-exit-btn-wrap').style.display = 'none';
+      document.title = document.title.replace('🔴 WAR ROOM — ', '');
+      _warRoomConsecutiveClear = 0;
+      return;
+    }
+
+    _simulationActive = true;
+    _warRoomConsecutiveClear = 0;
+    renderWarRoomFromData(data);
+    document.getElementById('warroom-exit-btn-wrap').style.display = 'block';
+  } catch(err){
+    console.error('Simulation request failed:', err);
+    alert('Simulation request failed');
+  }
+}
+
+// Shared renderer used by both real crisis-status and simulation.
+function renderWarRoomFromData(data){
+  const overlay = document.getElementById('warroom-overlay');
+  const tierLabel = document.getElementById('warroom-tier-label');
+  const subtitle  = document.getElementById('warroom-subtitle');
+  const lastChecked = document.getElementById('warroom-last-checked');
+  const patternsDiv = document.getElementById('warroom-patterns');
+
+  const simTag = data.simulated ? ' (SIMULATED — DEMO ONLY)' : '';
+  tierLabel.innerHTML = `<span id="warroom-pulse" style="width:14px;height:14px;border-radius:50%;background:#ff1744;display:inline-block;animation:warroom-pulse 1s infinite"></span> ${(TIER_LABELS[data.overall_tier] || data.overall_tier)}${simTag}`;
+  subtitle.textContent = `${data.active_patterns.length} active condition(s)${data.simulated ? ' — this is a demo simulation, not real data' : ' detected — normal dashboard suspended until this clears'}`;
+  lastChecked.textContent = new Date(data.checked_at).toLocaleTimeString('en-IN');
+  patternsDiv.innerHTML = data.active_patterns.map(renderWarRoomPattern).join('');
+
+  overlay.style.display = 'block';
+  document.title = '🔴 WAR ROOM — ' + document.title.replace('🔴 WAR ROOM — ', '');
+}
+
 async function checkCrisisStatus(){
+  // Do not let real polling overwrite an active admin simulation.
+  if(_simulationActive) return;
+
   try {
     const token = localStorage.getItem('sl_token');
     const res = await fetch('/api/v1/poles/crisis-status', {
@@ -1770,23 +1850,14 @@ async function checkCrisisStatus(){
     if(data.war_room_active){
       _warRoomConsecutiveClear = 0;
 
-      const tierLabel = document.getElementById('warroom-tier-label');
-      const subtitle  = document.getElementById('warroom-subtitle');
-      const lastChecked = document.getElementById('warroom-last-checked');
-      const patternsDiv = document.getElementById('warroom-patterns');
-
-      tierLabel.innerHTML = `<span id="warroom-pulse" style="width:14px;height:14px;border-radius:50%;background:#ff1744;display:inline-block;animation:warroom-pulse 1s infinite"></span> ${TIER_LABELS[data.overall_tier] || data.overall_tier}`;
-      subtitle.textContent = `${data.active_patterns.length} active condition(s) detected — normal dashboard suspended until this clears`;
-      lastChecked.textContent = new Date(data.checked_at).toLocaleTimeString('en-IN');
-      patternsDiv.innerHTML = data.active_patterns.map(renderWarRoomPattern).join('');
-
-      overlay.style.display = 'block';
-      document.title = '🔴 WAR ROOM — ' + document.title.replace('🔴 WAR ROOM — ', '');
+      renderWarRoomFromData(data);
+      document.getElementById('warroom-exit-btn-wrap').style.display = 'none';
     } else {
       // Require sustained clear readings before exiting — avoid flicker
       _warRoomConsecutiveClear++;
       if(_warRoomConsecutiveClear >= WARROOM_CLEAR_THRESHOLD){
         overlay.style.display = 'none';
+        document.getElementById('warroom-exit-btn-wrap').style.display = 'none';
         document.title = document.title.replace('🔴 WAR ROOM — ', '');
       }
       // else: stay in War Room a bit longer even though this one check
