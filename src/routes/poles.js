@@ -100,6 +100,102 @@ router.get('/glow-history', async (req, res) => {
   }
 });
 
+// ─── POST /api/v1/poles/crisis-status/simulate ───────────────────────────────
+// SUPER_ADMIN ONLY — manually simulates a crisis tier for demo/testing
+// purposes, WITHOUT touching real data. This lets officials SEE what
+// War Room looks like without needing a real disaster or fake SQL rows.
+// This is purely a frontend display simulation — it does NOT create
+// fake work_orders or poles in the database.
+router.post('/crisis-status/simulate',
+  requireRole('SUPER_ADMIN'),
+  async (req, res) => {
+    const { tier } = req.body;
+    const validTiers = ['NORMAL', 'ELEVATED', 'SEVERE', 'CRITICAL', 'CATASTROPHIC'];
+    if (!validTiers.includes(tier)) {
+      return res.status(400).json({ ok: false, error: `tier must be one of: ${validTiers.join(', ')}` });
+    }
+
+    const simulatedResponses = {
+      NORMAL: {
+        overall_tier: 'NORMAL',
+        war_room_active: false,
+        active_patterns: [],
+      },
+      SEVERE: {
+        overall_tier: 'SEVERE',
+        war_room_active: true,
+        active_patterns: [{
+          pattern: 'ZONE_SEVERE',
+          severity: 'SEVERE',
+          summary: '[SIMULATED] 1 zone(s) individually at severe fault levels — Titli-scale single-zone event',
+          detail: [{ zone_id: 2, zone_name: 'South Zone (Srikakulam-style)', total_poles_in_zone: '28000', poles_faulted_last_hour: '1540', pct_zone_affected_1hr: '5.50' }],
+        }],
+      },
+      CRITICAL: {
+        overall_tier: 'CRITICAL',
+        war_room_active: true,
+        active_patterns: [
+          {
+            pattern: 'LIFE_SAFETY_HAZARD',
+            severity: 'CRITICAL',
+            summary: '[SIMULATED] 2 unresolved downed/exposed-wire hazard(s) — public safety risk',
+            detail: [
+              { pole_number: 'VSP-N-04521', zone_name: 'North Zone', ward_number: 7, minutes_open: '12.4' },
+              { pole_number: 'VSP-E-01893', zone_name: 'East Zone', ward_number: 45, minutes_open: '6.1' },
+            ],
+          },
+          {
+            pattern: 'COMMUNICATION_BLACKOUT',
+            severity: 'CRITICAL',
+            summary: '[SIMULATED] 2 ward(s) have lost communication with a cluster of junction boxes',
+            detail: [
+              { ward_id: 7, zone_id: 1, silent_box_count: '5', total_boxes_in_ward: '6', pct_ward_silent: '83.3' },
+            ],
+          },
+        ],
+      },
+      CATASTROPHIC: {
+        overall_tier: 'CATASTROPHIC',
+        war_room_active: true,
+        active_patterns: [
+          {
+            pattern: 'CITY_WIDE_CATASTROPHIC',
+            severity: 'CATASTROPHIC',
+            summary: '[SIMULATED] 4 zones simultaneously at severe tier — city-wide event (Hudhud-scale)',
+            detail: [{ zones_at_severe_tier: 4, affected_zone_names: ['North Zone', 'South Zone', 'Central Zone', 'Gajuwaka Zone'], worst_zone_pct_affected: '18.20' }],
+          },
+          {
+            pattern: 'LIFE_SAFETY_HAZARD',
+            severity: 'CRITICAL',
+            summary: '[SIMULATED] 6 unresolved downed/exposed-wire hazard(s) — public safety risk',
+            detail: [
+              { pole_number: 'VSP-N-01122', zone_name: 'North Zone', ward_number: 3, minutes_open: '38.0' },
+              { pole_number: 'VSP-C-00871', zone_name: 'Central Zone', ward_number: 33, minutes_open: '22.5' },
+            ],
+          },
+          {
+            pattern: 'COMMUNICATION_BLACKOUT',
+            severity: 'CRITICAL',
+            summary: '[SIMULATED] 5 ward(s) have lost communication with a cluster of junction boxes',
+            detail: [
+              { ward_id: 3, zone_id: 1, silent_box_count: '8', total_boxes_in_ward: '9', pct_ward_silent: '88.9' },
+            ],
+          },
+        ],
+      },
+    };
+
+    logger.warn('War Room simulation triggered', { tier, by: req.user.user_id });
+
+    res.json({
+      ok: true,
+      simulated: true,
+      checked_at: new Date().toISOString(),
+      ...(simulatedResponses[tier] || simulatedResponses.NORMAL),
+    });
+  }
+);
+
 // ─── GET /api/v1/poles/crisis-status ─────────────────────────────────────────
 // Checks ALL crisis patterns and returns a combined, tiered assessment.
 // Each pattern is independently sufficient — a single life-safety hazard

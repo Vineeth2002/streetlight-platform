@@ -182,3 +182,10 @@ See `/areas/streetlight-platform` notes for the full GVMC field-visit questionna
 
 Internal municipal project — not currently licensed for public redistribution.
 
+## Demo Materials
+
+Presentation materials for stakeholder meetings live in `/docs`:
+- `docs/GVMC_OnePager.pdf` — printable one-page overview
+- `docs/GVMC_OnePager.html` — editable source, regenerate PDF as needed
+
+---

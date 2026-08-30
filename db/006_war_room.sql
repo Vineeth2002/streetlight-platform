@@ -223,3 +223,4 @@ LEFT JOIN (
 
 COMMENT ON VIEW v_zone_comms_health IS
   'Per-zone rollup of communication blackout clusters — join with v_zone_severity in the API layer to combine "faults we can see" with "areas we have lost visibility into" for a complete crisis picture.';
+  
