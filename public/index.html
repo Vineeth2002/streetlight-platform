@@ -297,6 +297,12 @@ body{font-family:'Segoe UI',sans-serif;background:#0a0e1a;color:#e0e6ff;overflow
       <button onclick="simulateCrisisTier('CRITICAL')" style="background:#ff1744;border:none;color:#fff;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">CRITICAL</button>
       <button onclick="simulateCrisisTier('CATASTROPHIC')" style="background:#8b0000;border:none;color:#fff;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">CATASTROPHIC</button>
     </div>
+    <div id="admin-warroom-triggers" style="display:none;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,23,68,0.1);border:1px solid rgba(255,23,68,0.3);border-radius:6px;margin-right:4px">
+      <span style="font-size:9px;color:#ffab91;margin-right:4px">DEMO:</span>
+      <button onclick="simulateCrisisTier('SEVERE')" style="background:#ff9100;border:none;color:#000;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">SEVERE</button>
+      <button onclick="simulateCrisisTier('CRITICAL')" style="background:#ff1744;border:none;color:#fff;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">CRITICAL</button>
+      <button onclick="simulateCrisisTier('CATASTROPHIC')" style="background:#8b0000;border:none;color:#fff;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">CATASTROPHIC</button>
+    </div>
     <button class="btn-signout" onclick="doLogout()">🔓 Sign Out</button>
   </div>
 </div>
@@ -1834,6 +1840,56 @@ function renderWarRoomFromData(data){
 }
 
 async function checkCrisisStatus(){
+  if(_simulationActive) return; // don't let real polling override an active demo simulation
+  try {
+// ─── DEMO / SIMULATION MODE ───────────────────────────────────────────────────
+// Lets SUPER_ADMIN see what War Room actually looks like without needing
+// real disaster data. Purely a display simulation — never touches the DB.
+let _simulationActive = false;
+
+async function simulateCrisisTier(tier){
+  const token = localStorage.getItem('sl_token');
+  try {
+    const res = await fetch('/api/v1/poles/crisis-status/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ tier })
+    });
+    const data = await res.json();
+    if(!data.ok){ alert(data.error || 'Simulation failed'); return; }
+
+    if(tier === 'NORMAL'){
+      _simulationActive = false;
+      document.getElementById('warroom-overlay').style.display = 'none';
+      document.getElementById('warroom-exit-btn-wrap').style.display = 'none';
+      document.title = document.title.replace('🔴 WAR ROOM — ', '');
+      return;
+    }
+
+    _simulationActive = true;
+    renderWarRoomFromData(data);
+    document.getElementById('warroom-exit-btn-wrap').style.display = 'block';
+  } catch(err){
+    alert('Simulation request failed');
+  }
+}
+
+function renderWarRoomFromData(data){
+  const overlay = document.getElementById('warroom-overlay');
+  const tierLabel = document.getElementById('warroom-tier-label');
+  const subtitle  = document.getElementById('warroom-subtitle');
+  const lastChecked = document.getElementById('warroom-last-checked');
+  const patternsDiv = document.getElementById('warroom-patterns');
+
+  const simTag = data.simulated ? ' (SIMULATED — DEMO ONLY)' : '';
+  tierLabel.innerHTML = `<span id="warroom-pulse" style="width:14px;height:14px;border-radius:50%;background:#ff1744;display:inline-block;animation:warroom-pulse 1s infinite"></span> ${(TIER_LABELS[data.overall_tier] || data.overall_tier)}${simTag}`;
+  subtitle.textContent = `${data.active_patterns.length} active condition(s)${data.simulated ? ' — this is a demo simulation, not real data' : ' detected — normal dashboard suspended until this clears'}`;
+  lastChecked.textContent = new Date(data.checked_at).toLocaleTimeString('en-IN');
+  patternsDiv.innerHTML = data.active_patterns.map(renderWarRoomPattern).join('');
+
+  overlay.style.display = 'block';
+  document.title = '🔴 WAR ROOM — ' + document.title.replace('🔴 WAR ROOM — ', '');
+}
   // Do not let real polling overwrite an active admin simulation.
   if(_simulationActive) return;
 
