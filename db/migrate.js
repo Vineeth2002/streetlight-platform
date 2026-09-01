@@ -9,6 +9,7 @@ const migrations = [
   '003_seed.sql',
   '004_security.sql',
   '005_ingestion_incidents.sql',
+  '006_incident_work_order_link.sql',
 ];
 
 async function runMigrations() {
