@@ -2,12 +2,16 @@
 
 const db = require('../../config/database');
 
-const VALID_STATES = new Set(['OPERATIONAL', 'FAULTY', 'UNDER_MAINTENANCE', 'NO_SIGNAL', 'DECOMMISSIONED']);
+// These values must remain aligned with poles.current_status in db/001_schema.sql.
+const VALID_STATES = new Set([
+  'OPERATIONAL',
+  'FAULTY',
+  'UNDER_REPAIR',
+  'DECOMMISSIONED',
+  'DAY_BURN',
+  'NO_SIGNAL'
+]);
 
-/**
- * Centralizes telemetry-driven pole state transitions.
- * Business definitions such as zone glow rate remain in the existing DB views.
- */
 async function transitionPoleState({ poleNumber, nextState, source = 'SYSTEM', reason = null, observedAt = null }) {
   if (!poleNumber) throw new Error('poleNumber is required');
   if (!VALID_STATES.has(nextState)) throw new Error(`Unsupported pole state: ${nextState}`);
@@ -18,6 +22,11 @@ async function transitionPoleState({ poleNumber, nextState, source = 'SYSTEM', r
       [poleNumber]
     );
     if (!pole) return { changed: false, reason: 'ASSET_NOT_FOUND' };
+
+    // Telemetry must not overwrite an active repair or decommissioned state.
+    if (source === 'TELEMETRY' && ['UNDER_REPAIR', 'DECOMMISSIONED'].includes(pole.current_status)) {
+      return { changed: false, reason: 'STATE_OWNED_BY_WORKFLOW', pole };
+    }
     if (pole.current_status === nextState) return { changed: false, reason: 'NO_CHANGE', pole };
 
     await t.none(
@@ -40,7 +49,13 @@ async function transitionPoleState({ poleNumber, nextState, source = 'SYSTEM', r
 
 async function applyTelemetryState({ poleNumber, healthy, signalPresent = true, source = 'TELEMETRY', observedAt = null }) {
   const nextState = !signalPresent ? 'NO_SIGNAL' : healthy ? 'OPERATIONAL' : 'FAULTY';
-  return transitionPoleState({ poleNumber, nextState, source, reason: signalPresent ? (healthy ? 'TELEMETRY_HEALTHY' : 'TELEMETRY_FAULT') : 'TELEMETRY_STALE', observedAt });
+  return transitionPoleState({
+    poleNumber,
+    nextState,
+    source,
+    reason: signalPresent ? (healthy ? 'TELEMETRY_HEALTHY' : 'TELEMETRY_FAULT') : 'TELEMETRY_STALE',
+    observedAt
+  });
 }
 
 module.exports = { VALID_STATES, transitionPoleState, applyTelemetryState };
