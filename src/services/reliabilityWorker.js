@@ -5,7 +5,6 @@ const logger = require('../utils/logger');
 
 let timer = null;
 
-// Keep the deterministic methodology shared by the API and worker.
 const RELIABILITY_SQL = `
 WITH failures AS (
   SELECT wo.pole_id, wo.work_order_id, wo.reported_timestamp, wo.resolved_timestamp, wo.fault_category,
@@ -34,8 +33,6 @@ SELECT a.*,
  CASE WHEN a.last_failure_at IS NULL THEN NULL ELSE ROUND(EXTRACT(EPOCH FROM (NOW()-a.last_failure_at))/86400.0,2) END days_since_last_repair
 FROM agg a`;
 
-// Set-based refresh: one INSERT...SELECT replaces the previous per-pole loop.
-// This matters at the intended ~200K asset scale.
 const REFRESH_SQL = `
 INSERT INTO asset_reliability_snapshots
   (pole_id, as_of, repair_count_90d, repair_count_365d, recurrence_count_90d,
@@ -44,17 +41,11 @@ INSERT INTO asset_reliability_snapshots
 SELECT r.pole_id, NOW(), r.repair_count_90d, r.repair_count_365d, r.recurrence_count_90d,
        r.mttr_hours_365d, r.mtbf_hours_365d, r.days_since_last_repair, r.last_failure_at,
        r.dominant_fault_category, r.risk_score, r.risk_band,
-       jsonb_build_object(
-         'repair_count_90d', r.repair_count_90d,
-         'repair_count_365d', r.repair_count_365d,
-         'recurrence_count_90d', r.recurrence_count_90d,
-         'mttr_hours_365d', r.mttr_hours_365d,
-         'mtbf_hours_365d', r.mtbf_hours_365d,
-         'dominant_fault_category', r.dominant_fault_category,
-         'methodology', 'deterministic-v1'
-       )
-FROM (${RELIABILITY_SQL}) r
-RETURNING pole_id`;
+       jsonb_build_object('repair_count_90d',r.repair_count_90d,'repair_count_365d',r.repair_count_365d,
+                          'recurrence_count_90d',r.recurrence_count_90d,'mttr_hours_365d',r.mttr_hours_365d,
+                          'mtbf_hours_365d',r.mtbf_hours_365d,'dominant_fault_category',r.dominant_fault_category,
+                          'methodology','deterministic-v1')
+FROM (${RELIABILITY_SQL}) r`;
 
 const ALERT_SQL = `
 INSERT INTO predictive_alerts(pole_id, alert_type, severity, status, score, reason, evidence)
@@ -65,15 +56,14 @@ SELECT r.pole_id, 'ASSET_RELIABILITY', r.risk_band, 'OPEN', r.risk_score,
                           'mtbf_hours_365d',r.mtbf_hours_365d,'methodology','deterministic-v1')
 FROM (${RELIABILITY_SQL}) r
 WHERE r.risk_band IN ('HIGH','CRITICAL')
-  AND NOT EXISTS (
-    SELECT 1 FROM predictive_alerts a
-    WHERE a.pole_id=r.pole_id AND a.alert_type='ASSET_RELIABILITY'
-      AND a.status IN ('OPEN','ACKNOWLEDGED')
-  )`;
+  AND NOT EXISTS (SELECT 1 FROM predictive_alerts a WHERE a.pole_id=r.pole_id AND a.alert_type='ASSET_RELIABILITY' AND a.status IN ('OPEN','ACKNOWLEDGED'))`;
 
 async function refreshReliability() {
   return db.tx(async t => {
-    const snapshots = await t.manyOrNone(REFRESH_SQL);
+    // Keep one snapshot per pole per calendar day. This prevents an hourly worker
+    // from producing hundreds of millions of duplicate rows at 200K assets.
+    await t.none(`DELETE FROM asset_reliability_snapshots WHERE as_of >= CURRENT_DATE AND as_of < CURRENT_DATE + INTERVAL '1 day'`);
+    const snapshots = await t.manyOrNone(REFRESH_SQL + ' RETURNING pole_id');
     await t.none(ALERT_SQL);
     return snapshots.length;
   });
@@ -82,12 +72,8 @@ async function refreshReliability() {
 function startReliabilityWorker({ intervalMs = Number(process.env.RELIABILITY_REFRESH_INTERVAL_MS || 3600000) } = {}) {
   if (timer) return timer;
   const run = async () => {
-    try {
-      const count = await refreshReliability();
-      logger.info('Asset reliability intelligence refreshed', { count });
-    } catch (err) {
-      logger.error('Asset reliability refresh failed', { error: err.message });
-    }
+    try { logger.info('Asset reliability intelligence refreshed', { count: await refreshReliability() }); }
+    catch (err) { logger.error('Asset reliability refresh failed', { error: err.message }); }
   };
   run();
   timer = setInterval(run, intervalMs);
@@ -95,9 +81,6 @@ function startReliabilityWorker({ intervalMs = Number(process.env.RELIABILITY_RE
   return timer;
 }
 
-function stopReliabilityWorker() {
-  if (timer) clearInterval(timer);
-  timer = null;
-}
+function stopReliabilityWorker() { if (timer) clearInterval(timer); timer = null; }
 
 module.exports = { RELIABILITY_SQL, REFRESH_SQL, ALERT_SQL, refreshReliability, startReliabilityWorker, stopReliabilityWorker };
