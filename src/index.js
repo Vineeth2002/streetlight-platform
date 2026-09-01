@@ -14,134 +14,31 @@ const db = require('../config/database');
 const { initWsServer, getStats } = require('./websocket/wsServer');
 const { startBillingCron } = require('./services/slaBillingService');
 const { startSlaWorker } = require('./services/slaWorker');
+const { startReconciliationWorker } = require('./services/reconciliationWorker');
 
 const REQUIRED_ENV = ['DB_HOST','DB_PORT','DB_NAME','DB_USER','DB_PASSWORD','JWT_SECRET'];
 const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
-if (missingEnv.length) {
-  console.error(`[FATAL] Missing required environment variables: ${missingEnv.join(', ')}`);
-  process.exit(1);
-}
-
+if (missingEnv.length) { console.error(`[FATAL] Missing required environment variables: ${missingEnv.join(', ')}`); process.exit(1); }
 const PORT = parseInt(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const CITY_NAME = process.env.CITY_NAME || 'Visakhapatnam';
 const TOTAL_POLES = parseInt(process.env.TOTAL_POLES) || 200000;
-
-const app = express();
-app.set('trust proxy', 1);
-
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'cdn.jsdelivr.net'],
-      scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'", 'cdn.jsdelivr.net'],
-      imgSrc: ["'self'", 'data:', '*.openstreetmap.org', '*.tile.openstreetmap.org', 'blob:'],
-      connectSrc: ["'self'", 'ws:', 'wss:', 'https://cdn.jsdelivr.net'],
-      fontSrc: ["'self'", 'cdn.jsdelivr.net'],
-      objectSrc: ["'none'"],
-      frameSrc: ["'none'"],
-    },
-  },
-  crossOriginEmbedderPolicy: false,
-}));
-
-const allowedOrigins = NODE_ENV === 'production'
-  ? (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean)
-  : ['http://localhost:3000', 'http://127.0.0.1:3000'];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (NODE_ENV === 'development') return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS policy: origin ${origin} not allowed`));
-  },
-  credentials: true,
-  methods: ['GET','POST','PATCH','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','X-API-Key'],
-}));
-
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: false, limit: '1mb' }));
-app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim(), { source: 'http' }) }, skip: req => req.path === '/health' }));
-app.use(rateLimit({ windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60000, max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 500, standardHeaders: true, legacyHeaders: false, message: { ok: false, error: 'Too many requests. Please slow down.' } }));
-app.use('/api/v1/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { ok: false, error: 'Too many login attempts. Try again later.' } }));
-
-app.use(express.static(path.join(__dirname, '../public'), { index: false, etag: true, maxAge: NODE_ENV === 'production' ? '1d' : 0 }));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../public/login.html')));
-const HTML_PAGES = ['login','index','contractor','ee-dashboard','field','admin'];
-HTML_PAGES.forEach(page => app.get(`/${page}.html`, (req, res) => res.sendFile(path.join(__dirname, `../public/${page}.html`))));
-
-app.get('/health', async (req, res) => {
-  let dbStatus = 'connected';
-  try { await db.one('SELECT 1'); } catch { dbStatus = 'disconnected'; }
-  res.json({ ok: true, service: `${CITY_NAME} Streetlight Platform`, city: CITY_NAME, total_poles: TOTAL_POLES, environment: NODE_ENV, db: dbStatus, websocket: getStats(), uptime_s: Math.floor(process.uptime()), memory_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024), version: '1.0.0' });
-});
-
-const authRoutes = require('./routes/auth');
-const adminRoutes = require('./routes/admin');
-const polesRoutes = require('./routes/poles');
-const workOrderRoutes = require('./routes/workOrders');
-const telemetryRoutes = require('./routes/telemetry');
-const attachmentRoutes = require('./routes/attachments');
-const billingRoutes = require('./routes/billing');
-
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/admin', adminRoutes);
-app.use('/api/v1/poles', polesRoutes);
-app.use('/api/v1/work-orders', workOrderRoutes);
-app.use('/api/v1/telemetry', telemetryRoutes);
-app.use('/api/v1/attachments', attachmentRoutes);
-app.use('/api/v1/billing', billingRoutes);
-
-app.get('/api/v1', (req, res) => res.json({ service: 'Municipal Infrastructure Asset Intelligence Platform', module: 'Streetlight', version: '1.0.0', city: CITY_NAME, poles: TOTAL_POLES }));
-
-app.use((req, res) => req.path.startsWith('/api/') ? res.status(404).json({ ok: false, error: `Not found: ${req.method} ${req.path}` }) : res.redirect('/login.html'));
-app.use((err, req, res, next) => {
-  logger.error('Unhandled error', { error: err.message, stack: NODE_ENV === 'development' ? err.stack : undefined, path: req.path, method: req.method });
-  if (err.message?.includes('CORS')) return res.status(403).json({ ok: false, error: 'CORS policy violation' });
-  res.status(500).json({ ok: false, error: NODE_ENV === 'development' ? err.message : 'Internal server error' });
-});
-
-async function start() {
-  try {
-    await db.one('SELECT NOW() AS now');
-    logger.info('Database connected');
-    const server = http.createServer(app);
-    initWsServer(server);
-    logger.info('WebSocket server initialised');
-    startBillingCron();
-    startSlaWorker();
-
-    server.listen(PORT, () => {
-      logger.info('═══════════════════════════════════════');
-      logger.info(' Municipal Infrastructure Asset Intelligence Platform');
-      logger.info(` Module: Streetlight — ${CITY_NAME}`);
-      logger.info(` Poles: ${TOTAL_POLES.toLocaleString('en-IN')}  |  Port: ${PORT}`);
-      logger.info(` Dashboard: http://localhost:${PORT}`);
-      logger.info(` Environment: ${NODE_ENV}`);
-      logger.info('═══════════════════════════════════════');
-    });
-
-    const shutdown = async signal => {
-      logger.info(`${signal} received — shutting down gracefully`);
-      server.close(async () => {
-        try { await db.$pool.end(); logger.info('Database pool closed'); }
-        catch (err) { logger.error('DB pool close error', { error: err.message }); }
-        process.exit(0);
-      });
-      setTimeout(() => { logger.error('Forced shutdown after timeout'); process.exit(1); }, 10000);
-    };
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('uncaughtException', err => { logger.error('Uncaught exception', { error: err.message, stack: err.stack }); process.exit(1); });
-    process.on('unhandledRejection', reason => logger.error('Unhandled rejection', { reason: String(reason) }));
-  } catch (err) {
-    logger.error('Server startup failed', { error: err.message });
-    process.exit(1);
-  }
-}
-
+const app = express(); app.set('trust proxy', 1);
+app.use(helmet({ contentSecurityPolicy:{ directives:{ defaultSrc:["'self'"], scriptSrc:["'self'","'unsafe-inline'","'unsafe-eval'",'cdn.jsdelivr.net'],scriptSrcAttr:["'unsafe-inline'"],styleSrc:["'self'","'unsafe-inline'",'cdn.jsdelivr.net'],imgSrc:["'self'",'data:','*.openstreetmap.org','*.tile.openstreetmap.org','blob:'],connectSrc:["'self'",'ws:','wss:','https://cdn.jsdelivr.net'],fontSrc:["'self'",'cdn.jsdelivr.net'],objectSrc:["'none'"],frameSrc:["'none'"]}},crossOriginEmbedderPolicy:false }));
+const allowedOrigins = NODE_ENV==='production' ? (process.env.ALLOWED_ORIGINS||'').split(',').filter(Boolean) : ['http://localhost:3000','http://127.0.0.1:3000'];
+app.use(cors({origin:(origin,callback)=>{if(!origin||NODE_ENV==='development'||allowedOrigins.includes(origin))return callback(null,true);callback(new Error(`CORS policy: origin ${origin} not allowed`));},credentials:true,methods:['GET','POST','PATCH','DELETE','OPTIONS'],allowedHeaders:['Content-Type','Authorization','X-API-Key']}));
+app.use(express.json({limit:'1mb'})); app.use(express.urlencoded({extended:false,limit:'1mb'}));
+app.use(morgan('combined',{stream:{write:msg=>logger.info(msg.trim(),{source:'http'})},skip:req=>req.path==='/health'}));
+app.use(rateLimit({windowMs:parseInt(process.env.RATE_LIMIT_WINDOW_MS)||60000,max:parseInt(process.env.RATE_LIMIT_MAX_REQUESTS)||500,standardHeaders:true,legacyHeaders:false,message:{ok:false,error:'Too many requests. Please slow down.'}}));
+app.use('/api/v1/auth/login',rateLimit({windowMs:15*60*1000,max:20,message:{ok:false,error:'Too many login attempts. Try again later.'}}));
+app.use(express.static(path.join(__dirname,'../public'),{index:false,etag:true,maxAge:NODE_ENV==='production'?'1d':0}));
+app.get('/',(req,res)=>res.sendFile(path.join(__dirname,'../public/login.html')));
+['login','index','contractor','ee-dashboard','field','admin'].forEach(page=>app.get(`/${page}.html`,(req,res)=>res.sendFile(path.join(__dirname,`../public/${page}.html`))));
+app.get('/health',async(req,res)=>{let dbStatus='connected';try{await db.one('SELECT 1');}catch{dbStatus='disconnected';}res.json({ok:true,service:`${CITY_NAME} Streetlight Platform`,city:CITY_NAME,total_poles:TOTAL_POLES,environment:NODE_ENV,db:dbStatus,websocket:getStats(),uptime_s:Math.floor(process.uptime()),memory_mb:Math.round(process.memoryUsage().heapUsed/1024/1024),version:'1.0.0'});});
+const authRoutes=require('./routes/auth'),adminRoutes=require('./routes/admin'),polesRoutes=require('./routes/poles'),workOrderRoutes=require('./routes/workOrders'),telemetryRoutes=require('./routes/telemetry'),attachmentRoutes=require('./routes/attachments'),billingRoutes=require('./routes/billing');
+app.use('/api/v1/auth',authRoutes);app.use('/api/v1/admin',adminRoutes);app.use('/api/v1/poles',polesRoutes);app.use('/api/v1/work-orders',workOrderRoutes);app.use('/api/v1/telemetry',telemetryRoutes);app.use('/api/v1/attachments',attachmentRoutes);app.use('/api/v1/billing',billingRoutes);
+app.get('/api/v1',(req,res)=>res.json({service:'Municipal Infrastructure Asset Intelligence Platform',module:'Streetlight',version:'1.0.0',city:CITY_NAME,poles:TOTAL_POLES}));
+app.use((req,res)=>req.path.startsWith('/api/')?res.status(404).json({ok:false,error:`Not found: ${req.method} ${req.path}`}):res.redirect('/login.html'));
+app.use((err,req,res,next)=>{logger.error('Unhandled error',{error:err.message,stack:NODE_ENV==='development'?err.stack:undefined,path:req.path,method:req.method});if(err.message?.includes('CORS'))return res.status(403).json({ok:false,error:'CORS policy violation'});res.status(500).json({ok:false,error:NODE_ENV==='development'?err.message:'Internal server error'});});
+async function start(){try{await db.one('SELECT NOW() AS now');logger.info('Database connected');const server=http.createServer(app);initWsServer(server);logger.info('WebSocket server initialised');startBillingCron();startSlaWorker();startReconciliationWorker();server.listen(PORT,()=>logger.info(`Streetlight Platform listening on ${PORT} | ${CITY_NAME} | ${TOTAL_POLES.toLocaleString('en-IN')} poles`));const shutdown=async signal=>{logger.info(`${signal} received — shutting down gracefully`);server.close(async()=>{try{await db.$pool.end();logger.info('Database pool closed');}catch(err){logger.error('DB pool close error',{error:err.message});}process.exit(0);});setTimeout(()=>{logger.error('Forced shutdown after timeout');process.exit(1);},10000);};process.on('SIGTERM',()=>shutdown('SIGTERM'));process.on('SIGINT',()=>shutdown('SIGINT'));process.on('uncaughtException',err=>{logger.error('Uncaught exception',{error:err.message,stack:err.stack});process.exit(1);});process.on('unhandledRejection',reason=>logger.error('Unhandled rejection',{reason:String(reason)}));}catch(err){logger.error('Server startup failed',{error:err.message});process.exit(1);}}
 start();
