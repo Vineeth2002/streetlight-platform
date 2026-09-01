@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 
 let timer = null;
 
+// Keep the deterministic methodology shared by the API and worker.
 const RELIABILITY_SQL = `
 WITH failures AS (
   SELECT wo.pole_id, wo.work_order_id, wo.reported_timestamp, wo.resolved_timestamp, wo.fault_category,
@@ -33,39 +34,70 @@ SELECT a.*,
  CASE WHEN a.last_failure_at IS NULL THEN NULL ELSE ROUND(EXTRACT(EPOCH FROM (NOW()-a.last_failure_at))/86400.0,2) END days_since_last_repair
 FROM agg a`;
 
+// Set-based refresh: one INSERT...SELECT replaces the previous per-pole loop.
+// This matters at the intended ~200K asset scale.
+const REFRESH_SQL = `
+INSERT INTO asset_reliability_snapshots
+  (pole_id, as_of, repair_count_90d, repair_count_365d, recurrence_count_90d,
+   mttr_hours_365d, mtbf_hours_365d, days_since_last_repair, last_failure_at,
+   dominant_fault_category, risk_score, risk_band, factors)
+SELECT r.pole_id, NOW(), r.repair_count_90d, r.repair_count_365d, r.recurrence_count_90d,
+       r.mttr_hours_365d, r.mtbf_hours_365d, r.days_since_last_repair, r.last_failure_at,
+       r.dominant_fault_category, r.risk_score, r.risk_band,
+       jsonb_build_object(
+         'repair_count_90d', r.repair_count_90d,
+         'repair_count_365d', r.repair_count_365d,
+         'recurrence_count_90d', r.recurrence_count_90d,
+         'mttr_hours_365d', r.mttr_hours_365d,
+         'mtbf_hours_365d', r.mtbf_hours_365d,
+         'dominant_fault_category', r.dominant_fault_category,
+         'methodology', 'deterministic-v1'
+       )
+FROM (${RELIABILITY_SQL}) r
+RETURNING pole_id`;
+
+const ALERT_SQL = `
+INSERT INTO predictive_alerts(pole_id, alert_type, severity, status, score, reason, evidence)
+SELECT r.pole_id, 'ASSET_RELIABILITY', r.risk_band, 'OPEN', r.risk_score,
+       'Asset reliability risk is ' || lower(r.risk_band) || ' based on repair recurrence and historical resolution behavior.',
+       jsonb_build_object('repair_count_90d',r.repair_count_90d,'repair_count_365d',r.repair_count_365d,
+                          'recurrence_count_90d',r.recurrence_count_90d,'mttr_hours_365d',r.mttr_hours_365d,
+                          'mtbf_hours_365d',r.mtbf_hours_365d,'methodology','deterministic-v1')
+FROM (${RELIABILITY_SQL}) r
+WHERE r.risk_band IN ('HIGH','CRITICAL')
+  AND NOT EXISTS (
+    SELECT 1 FROM predictive_alerts a
+    WHERE a.pole_id=r.pole_id AND a.alert_type='ASSET_RELIABILITY'
+      AND a.status IN ('OPEN','ACKNOWLEDGED')
+  )`;
+
 async function refreshReliability() {
-  const rows = await db.manyOrNone(RELIABILITY_SQL);
-  await db.tx(async t => {
-    for (const r of rows) {
-      const factors = {
-        repair_count_90d: Number(r.repair_count_90d),
-        repair_count_365d: Number(r.repair_count_365d),
-        recurrence_count_90d: Number(r.recurrence_count_90d),
-        mttr_hours_365d: r.mttr_hours_365d == null ? null : Number(r.mttr_hours_365d),
-        mtbf_hours_365d: r.mtbf_hours_365d == null ? null : Number(r.mtbf_hours_365d),
-        dominant_fault_category: r.dominant_fault_category || null,
-        methodology: 'deterministic-v1'
-      };
-      await t.none(`INSERT INTO asset_reliability_snapshots(pole_id,as_of,repair_count_90d,repair_count_365d,recurrence_count_90d,mttr_hours_365d,mtbf_hours_365d,days_since_last_repair,last_failure_at,dominant_fault_category,risk_score,risk_band,factors) VALUES($1,NOW(),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [r.pole_id,r.repair_count_90d,r.repair_count_365d,r.recurrence_count_90d,r.mttr_hours_365d,r.mtbf_hours_365d,r.days_since_last_repair,r.last_failure_at,r.dominant_fault_category,r.risk_score,r.risk_band,factors]);
-      if (r.risk_band === 'HIGH' || r.risk_band === 'CRITICAL') {
-        await t.none(`INSERT INTO predictive_alerts(pole_id,alert_type,severity,status,score,reason,evidence) SELECT $1,'ASSET_RELIABILITY', $2,'OPEN',$3,$4,$5 WHERE NOT EXISTS (SELECT 1 FROM predictive_alerts WHERE pole_id=$1 AND alert_type='ASSET_RELIABILITY' AND status IN ('OPEN','ACKNOWLEDGED'))`, [r.pole_id,r.risk_band,r.risk_score,`Asset reliability risk is ${r.risk_band.toLowerCase()} based on repair recurrence and historical resolution behavior.`,factors]);
-      }
-    }
+  return db.tx(async t => {
+    const snapshots = await t.manyOrNone(REFRESH_SQL);
+    await t.none(ALERT_SQL);
+    return snapshots.length;
   });
-  return rows.length;
 }
 
 function startReliabilityWorker({ intervalMs = Number(process.env.RELIABILITY_REFRESH_INTERVAL_MS || 3600000) } = {}) {
   if (timer) return timer;
   const run = async () => {
-    try { const count = await refreshReliability(); logger.info('Asset reliability intelligence refreshed', { count }); }
-    catch (err) { logger.error('Asset reliability refresh failed', { error: err.message }); }
+    try {
+      const count = await refreshReliability();
+      logger.info('Asset reliability intelligence refreshed', { count });
+    } catch (err) {
+      logger.error('Asset reliability refresh failed', { error: err.message });
+    }
   };
   run();
   timer = setInterval(run, intervalMs);
   if (timer.unref) timer.unref();
   return timer;
 }
-function stopReliabilityWorker() { if (timer) clearInterval(timer); timer = null; }
 
-module.exports = { RELIABILITY_SQL, refreshReliability, startReliabilityWorker, stopReliabilityWorker };
+function stopReliabilityWorker() {
+  if (timer) clearInterval(timer);
+  timer = null;
+}
+
+module.exports = { RELIABILITY_SQL, REFRESH_SQL, ALERT_SQL, refreshReliability, startReliabilityWorker, stopReliabilityWorker };
