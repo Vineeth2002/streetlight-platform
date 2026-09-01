@@ -42,7 +42,6 @@ describe('assetStateService', () => {
     mockTelemetryPole({
       pole_id: 1, pole_number: 'P-001', current_status: 'UNDER_REPAIR', has_active_work_order: false,
     });
-    mockTransition({ pole_id: 1, pole_number: 'P-001', current_status: 'UNDER_REPAIR' });
 
     const result = await applyTelemetryState({ poleNumber: 'P-001', healthy: true, signalPresent: true });
 
@@ -54,7 +53,6 @@ describe('assetStateService', () => {
     mockTelemetryPole({
       pole_id: 2, pole_number: 'P-002', current_status: 'DECOMMISSIONED', has_active_work_order: false,
     });
-    mockTransition({ pole_id: 2, pole_number: 'P-002', current_status: 'DECOMMISSIONED' });
 
     const result = await applyTelemetryState({ poleNumber: 'P-002', healthy: false, signalPresent: true });
 
