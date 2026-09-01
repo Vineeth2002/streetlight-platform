@@ -18,17 +18,11 @@ async function recordStatusChange(workOrderId, toStatus, changedBy, notes = null
       [workOrderId]
     );
     if (!wo) throw Object.assign(new Error('Work order not found'), { status: 404 });
-
-    if (wo.ticket_status === toStatus) {
-      return { work_order_id: workOrderId, status: toStatus, changed: false };
-    }
+    if (wo.ticket_status === toStatus) return { work_order_id: workOrderId, status: toStatus, changed: false };
 
     const allowed = TRANSITIONS[wo.ticket_status] || [];
     if (!allowed.includes(toStatus)) {
-      throw Object.assign(
-        new Error(`Invalid work-order transition: ${wo.ticket_status} -> ${toStatus}`),
-        { status: 409 }
-      );
+      throw Object.assign(new Error(`Invalid work-order transition: ${wo.ticket_status} -> ${toStatus}`), { status: 409 });
     }
 
     const timestampField = toStatus === 'ASSIGNED'
@@ -37,15 +31,10 @@ async function recordStatusChange(workOrderId, toStatus, changedBy, notes = null
         ? ', resolved_timestamp = NOW()'
         : '';
 
+    await t.none(`UPDATE work_orders SET ticket_status = $1${timestampField} WHERE work_order_id = $2`, [toStatus, workOrderId]);
     await t.none(
-      `UPDATE work_orders SET ticket_status = $1${timestampField} WHERE work_order_id = $2`,
-      [toStatus, workOrderId]
-    );
-
-    await t.none(
-      `INSERT INTO work_order_events
-        (work_order_id, from_status, to_status, changed_by, notes, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO work_order_events (work_order_id, from_status, to_status, changed_by, notes, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
       [workOrderId, wo.ticket_status, toStatus, changedBy || null, notes, JSON.stringify(metadata)]
     );
 
@@ -54,54 +43,36 @@ async function recordStatusChange(workOrderId, toStatus, changedBy, notes = null
 }
 
 async function addEvidence(workOrderId, input, capturedBy) {
-  const row = await db.one(
+  return db.one(
     `INSERT INTO work_order_evidence
       (work_order_id, evidence_type, uri, captured_at, latitude, longitude, captured_by, metadata)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-     RETURNING *`,
-    [
-      workOrderId,
-      input.evidence_type,
-      input.uri,
-      input.captured_at || new Date().toISOString(),
-      input.latitude ?? null,
-      input.longitude ?? null,
-      capturedBy || null,
-      JSON.stringify(input.metadata || {})
-    ]
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [workOrderId, input.evidence_type, input.uri, input.captured_at || new Date().toISOString(),
+     input.latitude ?? null, input.longitude ?? null, capturedBy || null, JSON.stringify(input.metadata || {})]
   );
-  return row;
 }
 
 async function verifyWorkOrder(workOrderId, result, verifiedBy, notes = null, metadata = {}) {
   return db.tx(async t => {
     const row = await t.oneOrNone(
-      'SELECT work_order_id, ticket_status FROM work_orders WHERE work_order_id = $1 FOR UPDATE',
-      [workOrderId]
+      'SELECT work_order_id, ticket_status FROM work_orders WHERE work_order_id = $1 FOR UPDATE', [workOrderId]
     );
     if (!row) throw Object.assign(new Error('Work order not found'), { status: 404 });
 
     const verification = await t.one(
-      `INSERT INTO work_order_verifications
-        (work_order_id, result, verified_by, notes, metadata)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING *`,
+      `INSERT INTO work_order_verifications (work_order_id,result,verified_by,notes,metadata)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [workOrderId, result, verifiedBy, notes, JSON.stringify(metadata)]
     );
 
     if (result === 'PASS' && row.ticket_status === 'RESOLVED') {
+      await t.none(`UPDATE work_orders SET ticket_status = 'CLOSED' WHERE work_order_id = $1`, [workOrderId]);
       await t.none(
-        `UPDATE work_orders SET ticket_status = 'CLOSED' WHERE work_order_id = $1`,
-        [workOrderId]
-      );
-      await t.none(
-        `INSERT INTO work_order_events
-          (work_order_id, from_status, to_status, changed_by, notes, metadata)
+        `INSERT INTO work_order_events (work_order_id,from_status,to_status,changed_by,notes,metadata)
          VALUES ($1,'RESOLVED','CLOSED',$2,$3,$4)`,
         [workOrderId, verifiedBy, 'Verification passed', JSON.stringify({ verification_id: verification.verification_id })]
       );
     }
-
     return verification;
   });
 }
