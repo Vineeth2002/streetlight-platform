@@ -2,10 +2,9 @@ const db = require('../../config/database');
 
 /**
  * Resolve an external source identifier to the platform's canonical asset.
- *
- * The first implementation supports existing pole/node identifiers. Future
- * CCMS integrations should use an explicit external-identifier mapping table
- * rather than spreading vendor-specific rules through the application.
+ * Explicit asset IDs win. Otherwise we try the existing pole_number and
+ * CCMS node_id fields. A future vendor integration should use a dedicated
+ * external_asset_mappings table instead of embedding vendor-specific rules.
  */
 async function resolveAsset(event) {
   if (event.asset_id) {
@@ -15,23 +14,30 @@ async function resolveAsset(event) {
   const sourceId = event.source_device_id;
   if (!sourceId) return { asset_id: null, resolution: 'UNRESOLVED' };
 
-  const result = await db.any(
-    `SELECT pole_id::text AS asset_id
+  const result = await db.oneOrNone(
+    `SELECT pole_id::text AS asset_id, pole_number, node_id
        FROM poles
       WHERE pole_id::text = $1
-         OR node_id::text = $1
+         OR pole_number = $1
+         OR node_id = $1
       LIMIT 1`,
     [sourceId]
   );
 
-  if (result.length) {
-    return {
-      asset_id: result[0].asset_id,
-      resolution: 'POLE_OR_NODE_ID',
-    };
-  }
+  if (!result) return { asset_id: null, resolution: 'UNRESOLVED' };
 
-  return { asset_id: null, resolution: 'UNRESOLVED' };
+  const resolution = result.node_id === sourceId
+    ? 'NODE_ID'
+    : result.pole_number === sourceId
+      ? 'POLE_NUMBER'
+      : 'POLE_ID';
+
+  return {
+    asset_id: result.asset_id,
+    pole_number: result.pole_number,
+    node_id: result.node_id,
+    resolution,
+  };
 }
 
 module.exports = { resolveAsset };
