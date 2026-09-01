@@ -122,3 +122,9 @@ CREATE TABLE IF NOT EXISTS intelligence_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_intelligence_snapshot_type_date
     ON intelligence_snapshots(snapshot_type, snapshot_date DESC);
+
+-- Composite indexes required by reliability and lifecycle queries at the target scale.
+CREATE INDEX IF NOT EXISTS idx_wo_pole_reported
+    ON work_orders(pole_id, reported_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_wo_pole_status
+    ON work_orders(pole_id, ticket_status);
