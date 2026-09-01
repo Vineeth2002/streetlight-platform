@@ -4,17 +4,9 @@ const db = require('../../config/database');
 const logger = require('../utils/logger');
 const { normalizeIncomingEvent } = require('./normalizer');
 const { resolveAsset } = require('./asset-resolver');
+const { correlateEvent } = require('../services/incidentCorrelator');
 const { broadcastNodeTelemetry, broadcastAlert } = require('../websocket/wsServer');
 
-/**
- * Platform ingestion boundary.
- *
- * Adapters call processIncomingEvent(); they do not write to the dashboard.
- * The processor normalizes and resolves the event, persists telemetry using
- * the existing schema, and publishes the resulting observation to WebSocket.
- * Incident/diagnostic decisions remain in the existing domain services until
- * their contract is migrated deliberately.
- */
 async function processIncomingEvent(input) {
   const event = normalizeIncomingEvent(input);
   const resolution = await resolveAsset(event);
@@ -31,9 +23,27 @@ async function processIncomingEvent(input) {
   const data = event.data || {};
   const poleNumber = resolution.pole_number || data.pole_number || event.source_device_id;
 
-  // Persist only when the canonical event contains the measurements expected
-  // by the existing node_telemetry table. This keeps unrelated event types
-  // from being forced into a telemetry-shaped row.
+  // Persist the canonical event first. This is the immutable operational record
+  // that can later be tied to incidents, work orders, alerts and audit history.
+  const storedEvent = await db.one(`
+    INSERT INTO ingestion_events
+      (event_type, source, source_device_id, asset_id, observed_at,
+       received_at, data, quality, correlation_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    RETURNING event_id
+  `, [
+    event.event_type,
+    event.source,
+    event.source_device_id,
+    resolution.asset_id,
+    event.observed_at,
+    event.received_at,
+    JSON.stringify(data),
+    JSON.stringify(event.quality),
+    event.correlation_id || null,
+  ]);
+  event.event_id = storedEvent.event_id;
+
   const hasTelemetry = [
     data.voltage_rms,
     data.current_rms,
@@ -46,7 +56,7 @@ async function processIncomingEvent(input) {
       INSERT INTO node_telemetry
         (timestamp, pole_number, node_id, voltage_rms, current_rms,
          active_power, power_factor, temperature, rssi)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
     `, [
       event.observed_at,
       poleNumber,
@@ -60,16 +70,19 @@ async function processIncomingEvent(input) {
     ]);
   }
 
+  const incident = await correlateEvent(event, resolution);
+
   if (event.event_type === 'TELEMETRY' || event.event_type === 'STATE_CHANGE') {
     broadcastNodeTelemetry(poleNumber, data, {
       asset_id: resolution.asset_id,
       source: event.source,
       observed_at: event.observed_at,
       quality: event.quality,
+      incident,
     });
   }
 
-  if (event.event_type === 'FAULT' || event.event_type === 'ALARM') {
+  if (event.event_type === 'FAULT' || event.event_type === 'ALARM' || incident.action === 'CREATED') {
     broadcastAlert('FAULT_EVENT', {
       asset_id: resolution.asset_id,
       pole_number: poleNumber,
@@ -77,12 +90,15 @@ async function processIncomingEvent(input) {
       observed_at: event.observed_at,
       data,
       quality: event.quality,
+      incident,
     });
   }
 
   return {
     accepted: true,
+    event_id: event.event_id,
     persisted_telemetry: hasTelemetry,
+    incident,
     event,
     resolution,
   };
