@@ -10,28 +10,20 @@ const migrations = [
   '004_security.sql',
   '005_ingestion_incidents.sql',
   '006_incident_work_order_link.sql',
+  '006_execution_evidence.sql',
 ];
 
 async function runMigrations() {
-  const client = new Client({
-    host:     process.env.DB_HOST,
-    port:     parseInt(process.env.DB_PORT),
-    database: process.env.DB_NAME,
-    user:     process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-  });
-
+  const client = new Client({ host: process.env.DB_HOST, port: parseInt(process.env.DB_PORT), database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
   try {
     await client.connect();
     console.log(`Connected to: ${process.env.DB_NAME}`);
-
     for (const file of migrations) {
       const sql = fs.readFileSync(path.join(__dirname, file), 'utf8');
       console.log(`Running: ${file}`);
       await client.query(sql);
       console.log(`Done: ${file}`);
     }
-
     console.log('\nAll migrations complete.');
   } catch (err) {
     console.error('Migration failed:', err.message);
@@ -40,5 +32,4 @@ async function runMigrations() {
     await client.end();
   }
 }
-
 runMigrations();
