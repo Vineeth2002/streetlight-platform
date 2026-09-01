@@ -6,21 +6,18 @@ services:
     container_name: streetlight_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: streetlight_vssp
-      POSTGRES_USER: streetlight_admin
-      POSTGRES_PASSWORD: Vizag@1234
+      POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
+      POSTGRES_USER: ${DB_USER:?DB_USER is required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - db_data:/home/postgres/pgdata/data
-      - ./db/001_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
-      - ./db/002_triggers.sql:/docker-entrypoint-initdb.d/02_triggers.sql
-      - ./db/003_seed.sql:/docker-entrypoint-initdb.d/03_seed.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U streetlight_admin -d streetlight_vssp"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   api:
     build:
@@ -32,20 +29,23 @@ services:
       db:
         condition: service_healthy
     environment:
-      NODE_ENV: development
-      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3000}
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: streetlight_vssp
-      DB_USER: streetlight_admin
-      DB_PASSWORD: Vizag@1234
-      CITY_NAME: Visakhapatnam
-      TOTAL_POLES: 200000
-      LOG_LEVEL: info
+      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      DB_USER: ${DB_USER:?DB_USER is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CITY_NAME: ${CITY_NAME:-Visakhapatnam}
+      TOTAL_POLES: ${TOTAL_POLES:-200000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     volumes:
       - ./logs:/app/logs
+    command: ["sh", "-c", "node db/migrate.js && node src/index.js"]
 
 volumes:
   db_data:
