@@ -12,6 +12,7 @@ const migrations = [
   '006_incident_work_order_link.sql',
   '006_execution_evidence.sql',
   '008_sla_runtime.sql',
+  '009_cabinet_correlation.sql',
 ];
 
 async function runMigrations() {
