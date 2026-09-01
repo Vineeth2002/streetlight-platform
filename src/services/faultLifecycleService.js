@@ -11,7 +11,6 @@ async function recordFault({ pole, diagnosis, observedAt, source = 'TELEMETRY' }
   const category = diagnosis.recommendedFault || 'MANUAL_REPORT';
 
   return db.tx(async t => {
-    // Find an existing active incident for the same asset and fault category.
     const existing = await t.oneOrNone(`
       SELECT i.*
       FROM incidents i
@@ -61,6 +60,15 @@ async function recordFault({ pole, diagnosis, observedAt, source = 'TELEMETRY' }
   });
 }
 
+async function attachWorkOrder({ episodeId, workOrderId }) {
+  if (!episodeId || !workOrderId) return null;
+  return db.oneOrNone(`
+    UPDATE fault_episodes
+       SET work_order_id = COALESCE(work_order_id, $2), updated_at = NOW()
+     WHERE episode_id = $1
+    RETURNING *`, [episodeId, workOrderId]);
+}
+
 async function recordRecovery({ pole, observedAt }) {
   const episodes = await db.manyOrNone(`
     SELECT episode_id, fault_category, incident_id
@@ -72,7 +80,6 @@ async function recordRecovery({ pole, observedAt }) {
     const row = await markRecovered({ poleId: pole.pole_id, faultCategory: episode.fault_category, recoveredAt: observedAt });
     if (!row) continue;
 
-    // Recovery is not final closure. A field/authorized verifier still owns closure.
     if (row.incident_id) {
       await db.none(`UPDATE incidents SET status='AWAITING_VERIFICATION', resolved_at=$2, updated_at=NOW() WHERE incident_id=$1 AND status NOT IN ('CLOSED','CANCELLED')`, [row.incident_id, observedAt]);
     }
@@ -81,4 +88,4 @@ async function recordRecovery({ pole, observedAt }) {
   return recovered;
 }
 
-module.exports = { recordFault, recordRecovery };
+module.exports = { recordFault, recordRecovery, attachWorkOrder };
