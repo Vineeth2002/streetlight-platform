@@ -18,6 +18,46 @@ function calcPenaltyB(daysOverdue, totalUnresolvedPoles) {
   return CONSTANTS.DEMURRAGE_PER_POLE * daysOverdue * totalUnresolvedPoles;
 }
 
+async function assessPenalty(t, order, { daysOverdue, penalty, penaltyType, dryRun }) {
+  if (dryRun) return { assessed: false };
+
+  // One transaction makes the work-order amount, immutable ledger event and
+  // contractor MTD total move together. The unique work_order_id makes the
+  // financial assessment idempotent even if the billing job is retried.
+  const ledger = await t.oneOrNone(`
+    INSERT INTO contractor_penalty_ledger
+      (work_order_id, contractor_id, penalty_amount, penalty_type, days_overdue, metadata)
+    SELECT $1, $2, $3, $4, $5, $6::jsonb
+    WHERE NOT EXISTS (
+      SELECT 1 FROM contractor_penalty_ledger WHERE work_order_id = $1
+    )
+    RETURNING penalty_id
+  `, [
+    order.work_order_id,
+    order.contractor_id,
+    penalty,
+    penaltyType,
+    daysOverdue,
+    JSON.stringify({ billing_assessment: 'SLA_MONTHLY_AUDIT' }),
+  ]);
+
+  if (!ledger) return { assessed: false, duplicate: true };
+
+  await t.none(`
+    UPDATE work_orders
+    SET penalty_deducted=$1, penalty_type=$2, days_overdue=$3
+    WHERE work_order_id=$4 AND penalty_deducted=0
+  `, [penalty, penaltyType, daysOverdue, order.work_order_id]);
+
+  await t.none(`
+    UPDATE contractors
+    SET total_penalty_mtd = total_penalty_mtd + $1
+    WHERE contractor_id = $2
+  `, [penalty, order.contractor_id]);
+
+  return { assessed: true };
+}
+
 async function runMonthlyBillingAudit(options = {}) {
   const { dryRun = false } = options;
   const billingMonth = options.billingMonth || new Date();
@@ -86,27 +126,21 @@ async function runMonthlyBillingAudit(options = {}) {
           const finalPenalty = parseFloat(Math.max(penaltyA, penaltyB).toFixed(2));
           const penaltyType  = penaltyA >= penaltyB ? 'ENERGY' : 'DEMURRAGE';
 
-          if (!dryRun) {
-            await db.none(`
-              UPDATE work_orders
-              SET penalty_deducted=$1, penalty_type=$2, days_overdue=$3
-              WHERE work_order_id=$4
-            `, [finalPenalty, penaltyType, daysOverdue, order.work_order_id]);
-          }
+          const result = await db.tx(t => assessPenalty(t, order, {
+            daysOverdue,
+            penalty: finalPenalty,
+            penaltyType,
+            dryRun,
+          }));
 
-          contractorTotalPenalty += finalPenalty;
-          report.totalPenaltyINR += finalPenalty;
-          report.processedOrders++;
+          if (result.assessed || dryRun) {
+            contractorTotalPenalty += finalPenalty;
+            report.totalPenaltyINR += finalPenalty;
+            report.processedOrders++;
+          }
         } catch (err) {
           report.errors.push({ work_order_id: order.work_order_id, error: err.message });
         }
-      }
-
-      if (!dryRun && contractorTotalPenalty > 0) {
-        await db.none(`
-          UPDATE contractors SET total_penalty_mtd = total_penalty_mtd + $1
-          WHERE contractor_id = $2
-        `, [contractorTotalPenalty.toFixed(2), contractorId]);
       }
 
       report.contractorSummaries.push({
@@ -169,11 +203,6 @@ async function saveMonthlyGlowSnapshot(){
 }
 
 // ─── HOURLY SLA SWEEP ──────────────────────────────────────────────────────
-// Catches silent SLA breaches that no one has touched since they opened.
-// The DB trigger only fires on INSERT/UPDATE of work_orders — if a ticket
-// sits untouched past its deadline, nothing flips its status until this
-// sweep runs. Without this, a breach could go unnoticed and unpenalized
-// until the monthly billing audit finally looks at it.
 async function sweepStaleWorkOrders() {
   try {
     const stale = await db.manyOrNone(`
@@ -190,9 +219,6 @@ async function sweepStaleWorkOrders() {
         count: stale.length,
         work_order_ids: stale.map(s => s.work_order_id),
       });
-
-      // Broadcast alert for each newly-breached order so live dashboards
-      // reflect it immediately instead of waiting for next poll
       const { broadcastAlert } = require('../websocket/wsServer');
       stale.forEach(s => {
         broadcastAlert('SLA_BREACH_DETECTED', {
@@ -230,7 +256,6 @@ function startBillingCron() {
   }, { scheduled: true, timezone: 'Asia/Kolkata' });
   logger.info('Billing cron registered', { schedule });
 
-  // Hourly sweep — catches silent SLA breaches between monthly audits
   const sweepSchedule = process.env.SLA_SWEEP_CRON_SCHEDULE || '0 * * * *';
   cron.schedule(sweepSchedule, async () => {
     const result = await sweepStaleWorkOrders();
