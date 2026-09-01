@@ -48,6 +48,27 @@ async function transitionPoleState({ poleNumber, nextState, source = 'SYSTEM', r
 }
 
 async function applyTelemetryState({ poleNumber, healthy, signalPresent = true, source = 'TELEMETRY', observedAt = null }) {
+  const pole = await db.oneOrNone(
+    `SELECT p.pole_id, p.pole_number, p.current_status,
+            EXISTS (
+              SELECT 1 FROM work_orders wo
+              WHERE wo.pole_id = p.pole_id
+                AND wo.ticket_status IN ('PENDING','ASSIGNED','IN_PROGRESS','SLA_VIOLATED')
+            ) AS has_active_work_order
+       FROM poles p
+      WHERE p.pole_number = $1`,
+    [poleNumber]
+  );
+
+  if (!pole) return { changed: false, reason: 'ASSET_NOT_FOUND' };
+
+  // Healthy telemetry is evidence of electrical recovery, not proof that an
+  // active field repair has been completed. Human execution verification owns
+  // the final transition to OPERATIONAL while a work order remains active.
+  if (healthy && pole.has_active_work_order) {
+    return { changed: false, reason: 'RECOVERY_REQUIRES_WORKFLOW_VERIFICATION', pole };
+  }
+
   const nextState = !signalPresent ? 'NO_SIGNAL' : healthy ? 'OPERATIONAL' : 'FAULTY';
   return transitionPoleState({
     poleNumber,
