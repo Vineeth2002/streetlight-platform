@@ -2,7 +2,7 @@
   'use strict';
   const state={connected:false,lastEventAt:null,snapshotLoaded:false,snapshotAt:null,summary:null,zones:[],assets:new Map(),incidents:new Map(),workOrders:new Map(),sla:new Map(),telemetry:new Map()};
   const listeners=new Set();
-  let map=null,markers=new Map(),viewportTimer=null,viewportRequest=0;
+  let map=null,markers=new Map(),viewportTimer=null,viewportRequest=0,lastViewportIds=new Set();
   const notify=(type,payload)=>listeners.forEach(fn=>{try{fn(type,payload,state);}catch(err){console.error('Dashboard listener error',err);}});
   function subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);}
   function upsert(map,id,value){if(id==null)return;const key=String(id);map.set(key,{...(map.get(key)||{}),...value});}
@@ -14,17 +14,20 @@
   }
   function markerColor(status){return status==='FAULTY'||status==='FAULT'?'#ff5252':status==='UNDER_REPAIR'?'#ffab40':status==='NO_SIGNAL'?'#90a4ae':'#00e676';}
   function markerPopup(a,status){return `<strong>${a.pole_number||a.pole_id||'—'}</strong><br>Status: ${status}<br>Zone: ${a.zone_name||'—'}<br>Ward: ${a.ward_number||'—'}<br>Road: ${a.road_name||'—'}<br>Voltage: ${a.nominal_voltage||'—'} V`;}
-  function renderAssets(assets,{fit=false}={}){
+  function renderAssets(assets,{fit=false,replaceViewport=false}={}){
     initMap(); if(!map)return;
-    const visible=new Set(),bounds=[];
+    const incoming=new Set(),bounds=[];
     (assets||[]).forEach(a=>{
       const lat=Number(a.latitude),lng=Number(a.longitude); if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
-      const id=String(a.pole_id||a.pole_number); visible.add(id); bounds.push([lat,lng]);
+      const id=String(a.pole_id||a.pole_number); incoming.add(id); bounds.push([lat,lng]);
       const status=a.current_status||a.current_state||'UNKNOWN',color=markerColor(status),popup=markerPopup(a,status),existing=markers.get(id);
       if(existing){existing.setLatLng([lat,lng]);existing.setStyle({color,fillColor:color});existing.setPopupContent(popup);}
       else {const marker=L.circleMarker([lat,lng],{radius:4,color,fillColor:color,fillOpacity:.85,weight:1});marker.bindPopup(popup);marker.addTo(map);markers.set(id,marker);}
     });
-    markers.forEach((marker,id)=>{if(!visible.has(id)){map.removeLayer(marker);markers.delete(id);}});
+    if(replaceViewport){
+      markers.forEach((marker,id)=>{if(!incoming.has(id)){map.removeLayer(marker);markers.delete(id);}});
+      lastViewportIds=new Set(incoming);
+    }
     if(fit&&bounds.length)map.fitBounds(bounds,{padding:[20,20],maxZoom:15});
   }
   async function loadVisibleAssets(){
@@ -38,7 +41,7 @@
       if(seq!==viewportRequest)return;
       const assets=Array.isArray(result.assets)?result.assets:[];
       assets.forEach(a=>upsert(state.assets,a.pole_id||a.pole_number,a));
-      renderAssets(assets);
+      renderAssets(assets,{replaceViewport:true});
       const label=document.getElementById('map-last-update'); if(label)label.textContent=`${assets.length.toLocaleString('en-IN')} assets in viewport · ${new Date().toLocaleTimeString()}`;
       notify('assets_viewport',{assets});
     }catch(err){console.error('Viewport asset load error',err);notify('error',err);}
@@ -54,7 +57,7 @@
     (result.work_orders||[]).forEach(w=>upsert(state.workOrders,w.work_order_id,w));
     (result.sla||[]).forEach(s=>upsert(state.sla,s.work_order_id,s));
     notify('snapshot',{summary:state.summary,zones:state.zones,metrics:state.snapshotMetrics,assets:[...state.assets.values()],incidents:[...state.incidents.values()],work_orders:[...state.workOrders.values()],sla:[...state.sla.values()],generated_at:state.snapshotAt});
-    setTimeout(()=>loadVisibleAssets(),0);
+    setTimeout(loadVisibleAssets,0);
     return result;
   }
   function applyEvent(message){
@@ -66,7 +69,11 @@
       upsert(state.telemetry,id,{...telemetry,diagnosis,pole_number:id});
       const assetId=payload.asset_id||id,existing=state.assets.get(String(assetId))||{};
       upsert(state.assets,assetId,{asset_id:assetId,pole_number:id,node_id:telemetry.node_id,last_seen_at:state.lastEventAt,current_state:telemetry.cabinet_on===false||telemetry.active_power===0?'FAULT':'ONLINE',diagnosis,latitude:payload.latitude??existing.latitude,longitude:payload.longitude??existing.longitude,current_status:payload.current_status??existing.current_status});
-      const asset=state.assets.get(String(assetId)); if(asset)renderAssets([asset]);notify('telemetry',{pole_number:id,telemetry,diagnosis});return;
+      const asset=state.assets.get(String(assetId)); if(asset){
+        if(markers.has(String(assetId)))renderAssets([asset]);
+        else if(map&&map.getBounds().contains([Number(asset.latitude),Number(asset.longitude)]))renderAssets([asset]);
+      }
+      notify('telemetry',{pole_number:id,telemetry,diagnosis});return;
     }
     if(topic==='ALERT'){upsert(state.incidents,payload.incident_id||payload.pole_number||message.ts,payload);notify('incident',payload);return;}
     if(['INCIDENT_CREATED','INCIDENT_UPDATED','INCIDENT'].includes(type)){upsert(state.incidents,payload.incident_id||payload.incident_number,payload);notify('incident',payload);return;}
