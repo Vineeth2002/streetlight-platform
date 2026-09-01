@@ -10,7 +10,7 @@ const migrations = [
   '004_security.sql',
   '005_ingestion_incidents.sql',
   '006_incident_work_order_link.sql',
-  '006_execution_evidence.sql',
+  '007_execution_evidence.sql',
   '008_sla_runtime.sql',
   '009_cabinet_correlation.sql',
 ];
