@@ -7,6 +7,8 @@ const migrations = [
   '001_schema.sql',
   '002_triggers.sql',
   '003_seed.sql',
+  '004_security.sql',
+  '005_ingestion_incidents.sql',
 ];
 
 async function runMigrations() {
