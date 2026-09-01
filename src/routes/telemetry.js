@@ -5,7 +5,7 @@ const db      = require('../../config/database');
 const logger  = require('../utils/logger');
 const { diagnose, createAutoWorkOrder } = require('../services/diagnosticEngine');
 const { applyTelemetryState } = require('../services/assetStateService');
-const { recordFault, recordRecovery } = require('../services/faultLifecycleService');
+const { recordFault, recordRecovery, attachWorkOrder } = require('../services/faultLifecycleService');
 const { broadcastNodeTelemetry, broadcastAlert } = require('../websocket/wsServer');
 const { normalizeIncomingEvent } = require('../ingestion/normalizer');
 const { processCanonicalEvent } = require('../ingestion/eventProcessor');
@@ -62,11 +62,13 @@ router.post('/node', async (req, res) => {
       if (healthy) {
         lifecycle = { recovered: await recordRecovery({ pole, observedAt }) };
       } else if (diagnosis.createWorkOrder && pole.pole_id) {
-        // The lifecycle service deduplicates the active fault episode. Existing
-        // work-order creation remains the authoritative workflow implementation.
         lifecycle = await recordFault({ pole, diagnosis, observedAt, source:value.source || 'TELEMETRY' });
-        try { workOrder = await createAutoWorkOrder(pole.pole_id, diagnosis, diagnosis.message); }
-        catch (woErr) { logger.error('Work order creation failed', { error:woErr.message }); }
+        try {
+          workOrder = await createAutoWorkOrder(pole.pole_id, diagnosis, diagnosis.message);
+          if (workOrder?.work_order_id && lifecycle?.episode?.episode_id) {
+            lifecycle.episode = await attachWorkOrder({ episodeId:lifecycle.episode.episode_id, workOrderId:workOrder.work_order_id });
+          }
+        } catch (woErr) { logger.error('Work order creation failed', { error:woErr.message }); }
       }
       broadcastNodeTelemetry(value.pole_number, value, diagnosis);
       if (diagnosis.severity === 'CRITICAL') broadcastAlert('FAULT_CRITICAL', { pole_number:value.pole_number, recommended_fault:diagnosis.recommendedFault, confidence_pct:diagnosis.confidencePct, message:diagnosis.message });
