@@ -9,11 +9,9 @@ const router = express.Router();
 router.use(requireAuth);
 router.use(requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE', 'READ_ONLY'));
 
-// Read-only command-center snapshot. Existing glow-rate and SLA definitions are
-// deliberately reused; this route does not introduce a second calculation.
 router.get('/summary', async (req, res) => {
   try {
-    const [city, zones, incidents, workOrders, sla, penalties] = await Promise.all([
+    const [city, zones, incidents, workOrders, sla, penalties, assets] = await Promise.all([
       db.one(`SELECT COUNT(*) FILTER (WHERE current_status <> 'DECOMMISSIONED')::int AS total_poles,
                      COUNT(*) FILTER (WHERE current_status = 'OPERATIONAL')::int AS operational_poles,
                      COUNT(*) FILTER (WHERE current_status = 'FAULTY')::int AS faulty_poles,
@@ -64,13 +62,25 @@ router.get('/summary', async (req, res) => {
                      WHERE wo.sla_deadline IS NOT NULL
                        AND wo.ticket_status NOT IN ('RESOLVED','CANCELLED')
                      ORDER BY wo.sla_deadline ASC LIMIT 200`),
-      db.one(`SELECT COALESCE(SUM(total_penalty_mtd),0) AS penalty_mtd_inr
-              FROM contractors`),
+      db.one(`SELECT COALESCE(SUM(total_penalty_mtd),0) AS penalty_mtd_inr FROM contractors`),
+      db.manyOrNone(`SELECT p.pole_id, p.pole_number, p.node_id, p.current_status,
+                            ST_Y(p.geolocation)::float8 AS latitude,
+                            ST_X(p.geolocation)::float8 AS longitude,
+                            p.road_name, p.luminaire_wattage,
+                            jb.cabinet_id, jb.cabinet_serial_no, jb.nominal_voltage,
+                            w.ward_number, z.zone_id, z.zone_name
+                     FROM poles p
+                     JOIN junction_boxes jb ON jb.cabinet_id = p.cabinet_id
+                     JOIN wards w ON w.ward_id = jb.ward_id
+                     JOIN zones z ON z.zone_id = w.zone_id
+                     WHERE p.current_status <> 'DECOMMISSIONED'
+                     ORDER BY p.pole_id LIMIT 5000`),
     ]);
 
     const total = Number(city.total_poles || 0);
     const operational = Number(city.operational_poles || 0);
-    const uptimePct = total ? Number((operational / total * 100).toFixed(2)) : 0;
+    const glowRatePct = total ? Number((operational / total * 100).toFixed(2)) : 0;
+    const slaBreaches = sla.filter(x => Number(x.hours_overdue) > 0).length;
 
     res.json({
       ok: true,
@@ -82,14 +92,17 @@ router.get('/summary', async (req, res) => {
         under_repair_poles: Number(city.under_repair_poles || 0),
         no_signal_poles: Number(city.no_signal_poles || 0),
         day_burn_poles: Number(city.day_burn_poles || 0),
-        glow_rate_pct: uptimePct,
-        sla_breaches: sla.filter(x => Number(x.hours_overdue) > 0).length,
+        glow_rate_pct: glowRatePct,
+        sla_breaches: slaBreaches,
         penalty_mtd_inr: Number(penalties.penalty_mtd_inr || 0),
+        open_incidents: incidents.length,
+        open_work_orders: workOrders.filter(x => !['RESOLVED','CANCELLED'].includes(x.ticket_status)).length,
       },
       zones,
       incidents,
       work_orders: workOrders,
       sla,
+      assets,
     });
   } catch (err) {
     logger.error('Dashboard summary error', { error: err.message });
