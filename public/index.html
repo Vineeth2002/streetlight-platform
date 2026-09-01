@@ -1840,7 +1840,7 @@ function renderWarRoomFromData(data){
 }
 
 async function checkCrisisStatus(){
-  if(_simulationActive) return; // don't let real polling override an active demo simulation
+  if(_simulationActive) return;
   try {
 // ─── DEMO / SIMULATION MODE ───────────────────────────────────────────────────
 // Lets SUPER_ADMIN see what War Room actually looks like without needing
