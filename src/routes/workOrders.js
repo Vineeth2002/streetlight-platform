@@ -21,29 +21,24 @@ const createSchema = Joi.object({
   reported_by:       Joi.string().max(100).optional().allow('', null),
 });
 
+// Legacy PATCH is retained for backward compatibility, but assignment and
+// lifecycle transitions are deliberately governed by workOrderGovernance.js.
+// Do not expose assigned_to here: callers must use /:id/assign.
 const updateSchema = Joi.object({
-  ticket_status:      Joi.string().valid(
-    'PENDING','ASSIGNED','IN_PROGRESS','RESOLVED','CANCELLED'
-  ).optional(),
   resolution_notes:   Joi.string().max(2000).optional().allow('', null),
   resolved_timestamp: Joi.string().isoDate().optional().allow(null),
-  assigned_timestamp: Joi.string().isoDate().optional().allow(null),
-  contractor_id:      Joi.number().integer().optional().allow(null),
-});
+}).min(1);
 
-// ─── Helper: build role-based WHERE clause ────────────────────────────────────
 function buildRoleFilter(user) {
   const conditions = [];
   const params     = [];
   let   paramIndex = 1;
 
-  // Contractor sees only their work orders
   if (user.role === 'CONTRACTOR' && user.contractor_id) {
     conditions.push(`wo.contractor_id = $${paramIndex++}`);
     params.push(user.contractor_id);
   }
 
-  // EE sees only their zone
   if (user.role === 'GVMC_EE' && user.zone_id) {
     conditions.push(`w.zone_id = $${paramIndex++}`);
     params.push(user.zone_id);
@@ -80,7 +75,7 @@ router.get('/', async (req, res) => {
 
     const rows = await db.manyOrNone(`
       SELECT wo.work_order_id, wo.pole_id, wo.contractor_id,
-             wo.fault_category, wo.fault_description,
+             wo.assigned_to, wo.fault_category, wo.fault_description,
              wo.reported_by, wo.reported_timestamp,
              wo.assigned_timestamp, wo.resolved_timestamp,
              wo.sla_deadline, wo.ticket_status,
@@ -88,6 +83,7 @@ router.get('/', async (req, res) => {
              wo.penalty_type, wo.days_overdue,
              p.pole_number, p.luminaire_wattage, p.wiring_type,
              c.company_name AS contractor_name,
+             u.full_name AS assigned_to_name,
              z.zone_name,
              w.ward_number
       FROM work_orders wo
@@ -96,6 +92,7 @@ router.get('/', async (req, res) => {
       JOIN wards w ON jb.ward_id = w.ward_id
       JOIN zones z ON w.zone_id = z.zone_id
       LEFT JOIN contractors c ON wo.contractor_id = c.contractor_id
+      LEFT JOIN users u ON wo.assigned_to = u.user_id
       ${whereClause}
       ORDER BY wo.reported_timestamp DESC
       LIMIT $${idx++} OFFSET $${idx++}
@@ -146,9 +143,15 @@ router.get('/sla-breaches', async (req, res) => {
 // ─── GET /api/v1/work-orders/:id ─────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
+    const workOrderId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(workOrderId)) {
+      return res.status(400).json({ ok: false, error: 'Invalid work order id' });
+    }
+
     const wo = await db.oneOrNone(`
       SELECT wo.*, p.pole_number, p.luminaire_wattage, p.wiring_type,
              c.company_name AS contractor_name,
+             u.full_name AS assigned_to_name,
              z.zone_name, w.ward_number
       FROM work_orders wo
       JOIN poles p ON wo.pole_id = p.pole_id
@@ -156,14 +159,16 @@ router.get('/:id', async (req, res) => {
       JOIN wards w ON jb.ward_id = w.ward_id
       JOIN zones z ON w.zone_id = z.zone_id
       LEFT JOIN contractors c ON wo.contractor_id = c.contractor_id
+      LEFT JOIN users u ON wo.assigned_to = u.user_id
       WHERE wo.work_order_id = $1
-    `, [parseInt(req.params.id)]);
+    `, [workOrderId]);
 
     if (!wo) return res.status(404).json({ ok: false, error: 'Work order not found' });
 
-    // Contractor can only see their own
-    if (req.user.role === 'CONTRACTOR' &&
-        wo.contractor_id !== req.user.contractor_id) {
+    if (req.user.role === 'CONTRACTOR' && wo.contractor_id !== req.user.contractor_id) {
+      return res.status(403).json({ ok: false, error: 'Access denied' });
+    }
+    if (req.user.role === 'GVMC_EE' && wo.zone_id !== req.user.zone_id) {
       return res.status(403).json({ ok: false, error: 'Access denied' });
     }
 
@@ -182,12 +187,33 @@ router.post('/',
     if (error) return res.status(400).json({ ok: false, error: error.details[0].message });
 
     try {
-      const pole = await db.oneOrNone(
-        'SELECT pole_id FROM poles WHERE pole_id = $1', [value.pole_id]
-      );
+      const pole = await db.oneOrNone(`
+        SELECT p.pole_id, z.zone_id
+        FROM poles p
+        JOIN junction_boxes jb ON p.cabinet_id = jb.cabinet_id
+        JOIN wards w ON jb.ward_id = w.ward_id
+        JOIN zones z ON w.zone_id = z.zone_id
+        WHERE p.pole_id = $1
+      `, [value.pole_id]);
       if (!pole) return res.status(404).json({ ok: false, error: 'Pole not found' });
 
-      // Check for existing open ticket on same pole + fault
+      if (req.user.role === 'GVMC_EE' && pole.zone_id !== req.user.zone_id) {
+        return res.status(403).json({ ok: false, error: 'Cannot create a work order outside your zone' });
+      }
+
+      if (value.contractor_id) {
+        const contractor = await db.oneOrNone(
+          'SELECT contractor_id, assigned_zone_id, is_active FROM contractors WHERE contractor_id = $1',
+          [value.contractor_id]
+        );
+        if (!contractor || !contractor.is_active) {
+          return res.status(400).json({ ok: false, error: 'Contractor not found or inactive' });
+        }
+        if (contractor.assigned_zone_id && contractor.assigned_zone_id !== pole.zone_id) {
+          return res.status(400).json({ ok: false, error: 'Contractor is not assigned to the work order zone' });
+        }
+      }
+
       const existing = await db.oneOrNone(`
         SELECT work_order_id FROM work_orders
         WHERE pole_id = $1 AND fault_category = $2
@@ -220,11 +246,7 @@ router.post('/',
       await auditLog(req.user.user_id, 'WORK_ORDER_CREATED', 'work_orders',
         wo.work_order_id, true, { fault_category: value.fault_category }, req);
 
-      logger.info('Work order created', {
-        work_order_id: wo.work_order_id,
-        by: req.user.user_id
-      });
-
+      logger.info('Work order created', { work_order_id: wo.work_order_id, by: req.user.user_id });
       res.status(201).json({ ok: true, data: wo });
     } catch (err) {
       logger.error('Create work order error', { error: err.message });
@@ -233,165 +255,114 @@ router.post('/',
   }
 );
 
-// ─── PATCH /api/v1/work-orders/:id ───────────────────────────────────────────
-router.patch('/:id', async (req, res) => {
-  const { error, value } = updateSchema.validate(req.body);
-  if (error) return res.status(400).json({ ok: false, error: error.details[0].message });
+// ─── Legacy PATCH /api/v1/work-orders/:id ────────────────────────────────────
+// Only non-lifecycle operational notes remain here. Status, assignment and
+// contractor ownership changes must use the governed endpoints.
+router.patch('/:id',
+  requireRole('SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','CONTRACTOR','FIELD_ENGINEER'),
+  async (req, res) => {
+    const { error, value } = updateSchema.validate(req.body);
+    if (error) return res.status(400).json({ ok: false, error: error.details[0].message });
 
-  try {
-    const wo = await db.oneOrNone(
-      'SELECT * FROM work_orders WHERE work_order_id = $1',
-      [parseInt(req.params.id)]
-    );
-    if (!wo) return res.status(404).json({ ok: false, error: 'Work order not found' });
-
-    // Contractor can only update their own
-    if (req.user.role === 'CONTRACTOR' &&
-        wo.contractor_id !== req.user.contractor_id) {
-      return res.status(403).json({ ok: false, error: 'Access denied' });
-    }
-
-    // Field engineer can only mark IN_PROGRESS or RESOLVED
-    if (req.user.role === 'FIELD_ENGINEER') {
-      const allowed = ['IN_PROGRESS', 'RESOLVED'];
-      if (value.ticket_status && !allowed.includes(value.ticket_status)) {
-        return res.status(403).json({
-          ok: false,
-          error: 'Field engineers can only set IN_PROGRESS or RESOLVED'
-        });
+    try {
+      const workOrderId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(workOrderId)) {
+        return res.status(400).json({ ok: false, error: 'Invalid work order id' });
       }
-    }
 
-    // Build update
-    const updates = [];
-    const params  = [];
-    let   idx     = 1;
+      const wo = await db.oneOrNone(`
+        SELECT wo.*, z.zone_id
+        FROM work_orders wo
+        JOIN poles p ON wo.pole_id = p.pole_id
+        JOIN junction_boxes jb ON p.cabinet_id = jb.cabinet_id
+        JOIN wards w ON jb.ward_id = w.ward_id
+        JOIN zones z ON w.zone_id = z.zone_id
+        WHERE wo.work_order_id = $1
+      `, [workOrderId]);
+      if (!wo) return res.status(404).json({ ok: false, error: 'Work order not found' });
 
-    if (value.ticket_status) {
-      updates.push(`ticket_status = $${idx++}`);
-      params.push(value.ticket_status);
-    }
-    if (value.resolution_notes !== undefined) {
-      updates.push(`resolution_notes = $${idx++}`);
-      params.push(value.resolution_notes);
-    }
-    if (value.resolved_timestamp) {
-      updates.push(`resolved_timestamp = $${idx++}`);
-      params.push(value.resolved_timestamp);
-    }
-    if (value.assigned_timestamp) {
-      updates.push(`assigned_timestamp = $${idx++}`);
-      params.push(value.assigned_timestamp);
-    }
-    if (value.contractor_id !== undefined) {
-      updates.push(`contractor_id = $${idx++}`);
-      params.push(value.contractor_id);
-    }
+      if (req.user.role === 'CONTRACTOR' && wo.contractor_id !== req.user.contractor_id) {
+        return res.status(403).json({ ok: false, error: 'Access denied' });
+      }
+      if (req.user.role === 'GVMC_EE' && wo.zone_id !== req.user.zone_id) {
+        return res.status(403).json({ ok: false, error: 'Access denied' });
+      }
+      if (req.user.role === 'FIELD_ENGINEER' && wo.assigned_to !== req.user.user_id) {
+        return res.status(403).json({ ok: false, error: 'Work order is not assigned to this field engineer' });
+      }
 
-    if (!updates.length) {
-      return res.status(400).json({ ok: false, error: 'No fields to update' });
+      const updates = [];
+      const params = [];
+      let idx = 1;
+
+      if (value.resolution_notes !== undefined) {
+        updates.push(`resolution_notes = $${idx++}`);
+        params.push(value.resolution_notes);
+      }
+      if (value.resolved_timestamp !== undefined) {
+        updates.push(`resolved_timestamp = $${idx++}`);
+        params.push(value.resolved_timestamp);
+      }
+
+      params.push(workOrderId);
+      await db.none(`UPDATE work_orders SET ${updates.join(', ')} WHERE work_order_id = $${idx}`, params);
+
+      await auditLog(req.user.user_id, 'WORK_ORDER_NOTES_UPDATED', 'work_orders',
+        workOrderId, true, { changes: value }, req);
+
+      res.json({ ok: true, message: 'Work order updated' });
+    } catch (err) {
+      logger.error('Update work order error', { error: err.message });
+      res.status(500).json({ ok: false, error: 'Internal server error' });
     }
-
-    params.push(parseInt(req.params.id));
-    await db.none(
-      `UPDATE work_orders SET ${updates.join(', ')} WHERE work_order_id = $${idx}`,
-      params
-    );
-
-    await auditLog(req.user.user_id, 'WORK_ORDER_UPDATED', 'work_orders',
-      parseInt(req.params.id), true, { changes: value }, req);
-
-    res.json({ ok: true, message: 'Work order updated' });
-  } catch (err) {
-    logger.error('Update work order error', { error: err.message });
-    res.status(500).json({ ok: false, error: 'Internal server error' });
   }
-});
+);
 
 // ─── POST /api/v1/work-orders/:id/verify ─────────────────────────────────────
-// Human verification of a system recommendation. This is the step that
-// closes the loop: an engineer who actually inspected the pole confirms
-// the recommended fault was correct, or corrects it to what they really
-// found. Either way, the outcome is permanently logged to fault_feedback —
-// this is the raw material any future real learning system would train on.
-// Never overwrites recommended_fault — verified_fault is stored separately
-// so we can always compare what the system guessed vs. what was true.
 router.patch('/:id/verify',
   requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE', 'FIELD_ENGINEER'),
   async (req, res) => {
     const workOrderId = parseInt(req.params.id);
     const { verified_fault } = req.body;
-
-    if (!verified_fault) {
-      return res.status(400).json({ ok: false, error: 'verified_fault is required' });
-    }
+    if (!verified_fault) return res.status(400).json({ ok: false, error: 'verified_fault is required' });
 
     try {
-      const wo = await db.oneOrNone(
-        `SELECT work_order_id, recommended_fault, confidence_pct,
-                possible_causes, model_version
-         FROM work_orders WHERE work_order_id = $1`,
-        [workOrderId]
-      );
-
+      const wo = await db.oneOrNone(`
+        SELECT work_order_id, recommended_fault, confidence_pct,
+               possible_causes, model_version, assigned_to, contractor_id
+        FROM work_orders WHERE work_order_id = $1
+      `, [workOrderId]);
       if (!wo) return res.status(404).json({ ok: false, error: 'Work order not found' });
 
+      if (req.user.role === 'FIELD_ENGINEER' && wo.assigned_to !== req.user.user_id) {
+        return res.status(403).json({ ok: false, error: 'Work order is not assigned to this field engineer' });
+      }
+      if (req.user.role === 'CONTRACTOR') {
+        return res.status(403).json({ ok: false, error: 'Contractors cannot perform GVMC verification' });
+      }
       if (!wo.recommended_fault) {
-        return res.status(400).json({
-          ok: false,
-          error: 'This work order has no system recommendation to verify — it may predate the recommendation engine, or was manually created'
-        });
+        return res.status(400).json({ ok: false, error: 'This work order has no system recommendation to verify' });
       }
 
       const correctPrediction = wo.recommended_fault === verified_fault;
-
-      // Update the work order with the human-confirmed answer
       await db.none(
-        `UPDATE work_orders
-         SET verified_fault = $1, verified_by = $2, verified_at = NOW()
-         WHERE work_order_id = $3`,
+        `UPDATE work_orders SET verified_fault = $1, verified_by = $2, verified_at = NOW() WHERE work_order_id = $3`,
         [verified_fault, req.user.user_id, workOrderId]
       );
-
-      // Log to fault_feedback — the permanent, never-deleted training record
       await db.none(
         `INSERT INTO fault_feedback
            (work_order_id, recommended_fault, confidence_pct, verified_fault,
             correct_prediction, model_version, evidence, reviewed_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [
-          workOrderId,
-          wo.recommended_fault,
-          wo.confidence_pct,
-          verified_fault,
-          correctPrediction,
-          wo.model_version,
-          JSON.stringify(wo.possible_causes),
-          req.user.user_id,
-        ]
+        [workOrderId, wo.recommended_fault, wo.confidence_pct, verified_fault,
+         correctPrediction, wo.model_version, JSON.stringify(wo.possible_causes), req.user.user_id]
       );
+      await auditLog(req.user.user_id, 'WORK_ORDER_VERIFIED', 'work_orders', workOrderId, true,
+        { recommended: wo.recommended_fault, verified: verified_fault, correct: correctPrediction }, req);
 
-      await auditLog(req.user.user_id, 'WORK_ORDER_VERIFIED', 'work_orders',
-        workOrderId, true,
-        { recommended: wo.recommended_fault, verified: verified_fault, correct: correctPrediction },
-        req);
-
-      logger.info('Work order verified', {
-        work_order_id: workOrderId,
-        recommended: wo.recommended_fault,
-        verified: verified_fault,
-        correct: correctPrediction,
-      });
-
-      res.json({
-        ok: true,
-        message: correctPrediction
-          ? 'Verified — system recommendation was correct'
-          : 'Verified — system recommendation was corrected',
-        recommended_fault: wo.recommended_fault,
-        verified_fault,
-        correct_prediction: correctPrediction,
-      });
+      res.json({ ok: true,
+        message: correctPrediction ? 'Verified — system recommendation was correct' : 'Verified — system recommendation was corrected',
+        recommended_fault: wo.recommended_fault, verified_fault, correct_prediction: correctPrediction });
     } catch (err) {
       logger.error('Verify work order error', { error: err.message });
       res.status(500).json({ ok: false, error: 'Internal server error' });
@@ -399,63 +370,31 @@ router.patch('/:id/verify',
   }
 );
 
-// ─── GET /api/v1/work-orders/accuracy/summary ────────────────────────────────
-// Rolling accuracy report — how often has the recommendation engine been
-// right so far, broken down by fault type and model version. Empty/zero
-// results are expected and correct until real verifications accumulate —
-// this is honest reporting, not a placeholder to hide.
 router.get('/accuracy/summary',
   requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE'),
   async (req, res) => {
     try {
       const overall = await db.oneOrNone(`
-        SELECT
-          COUNT(*) AS total_verified,
-          COUNT(*) FILTER (WHERE correct_prediction) AS correct_count,
-          ROUND(
-            COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC
-            / NULLIF(COUNT(*), 0) * 100, 1
-          ) AS accuracy_pct
+        SELECT COUNT(*) AS total_verified,
+               COUNT(*) FILTER (WHERE correct_prediction) AS correct_count,
+               ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct
         FROM fault_feedback
       `);
-
       const byFaultType = await db.manyOrNone(`
-        SELECT
-          recommended_fault,
-          COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE correct_prediction) AS correct,
-          ROUND(
-            COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC
-            / NULLIF(COUNT(*), 0) * 100, 1
-          ) AS accuracy_pct
-        FROM fault_feedback
-        GROUP BY recommended_fault
-        ORDER BY total DESC
+        SELECT recommended_fault, COUNT(*) AS total,
+               COUNT(*) FILTER (WHERE correct_prediction) AS correct,
+               ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct
+        FROM fault_feedback GROUP BY recommended_fault ORDER BY total DESC
       `);
-
       const byModelVersion = await db.manyOrNone(`
-        SELECT
-          model_version,
-          COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE correct_prediction) AS correct,
-          ROUND(
-            COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC
-            / NULLIF(COUNT(*), 0) * 100, 1
-          ) AS accuracy_pct
-        FROM fault_feedback
-        GROUP BY model_version
-        ORDER BY model_version
+        SELECT model_version, COUNT(*) AS total,
+               COUNT(*) FILTER (WHERE correct_prediction) AS correct,
+               ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct
+        FROM fault_feedback GROUP BY model_version ORDER BY model_version
       `);
-
-      res.json({
-        ok: true,
-        overall: overall || { total_verified: 0, correct_count: 0, accuracy_pct: null },
-        by_fault_type: byFaultType,
-        by_model_version: byModelVersion,
-        note: overall?.total_verified > 0
-          ? null
-          : 'No verifications logged yet — accuracy figures will populate as field engineers confirm real recommendations.',
-      });
+      res.json({ ok: true, overall: overall || { total_verified: 0, correct_count: 0, accuracy_pct: null },
+        by_fault_type: byFaultType, by_model_version: byModelVersion,
+        note: overall?.total_verified > 0 ? null : 'No verifications logged yet — accuracy figures will populate as field engineers confirm real recommendations.' });
     } catch (err) {
       logger.error('Accuracy summary error', { error: err.message });
       res.status(500).json({ ok: false, error: 'Internal server error' });
