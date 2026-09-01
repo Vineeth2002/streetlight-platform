@@ -5,6 +5,7 @@ const db      = require('../../config/database');
 const logger  = require('../utils/logger');
 const { diagnose, createAutoWorkOrder } = require('../services/diagnosticEngine');
 const { applyTelemetryState } = require('../services/assetStateService');
+const { recordFault, recordRecovery } = require('../services/faultLifecycleService');
 const { broadcastNodeTelemetry, broadcastAlert } = require('../websocket/wsServer');
 const { normalizeIncomingEvent } = require('../ingestion/normalizer');
 const { processCanonicalEvent } = require('../ingestion/eventProcessor');
@@ -51,16 +52,19 @@ router.post('/node', async (req, res) => {
     const ingestion = await processCanonicalEvent(canonicalEvent);
 
     const pole = await db.oneOrNone(`SELECT pole_id,pole_number,luminaire_wattage,wiring_type,current_status,node_id FROM poles WHERE pole_number=$1`, [value.pole_number]);
-    let diagnosis = null; let workOrder = null; let stateTransition = null;
+    let diagnosis = null; let workOrder = null; let stateTransition = null; let lifecycle = null;
     if (pole) {
       diagnosis = await diagnose({ poleNumber:value.pole_number, voltageRms:value.voltage_rms, currentRms:value.current_rms, activePower:value.active_power, powerFactor:value.power_factor, cabinetOn:value.cabinet_on, wiringType:pole.wiring_type });
 
-      // Only a telemetry packet with a known asset changes current_status.
-      // cabinet_on=false is treated as a fault signal; absence of packets is handled by reconciliation.
       const healthy = diagnosis.severity === 'NORMAL' && value.cabinet_on === true;
       stateTransition = await applyTelemetryState({ poleNumber:value.pole_number, healthy, signalPresent:true, source:value.source || 'CCMS', observedAt });
 
-      if (diagnosis.createWorkOrder && pole.pole_id) {
+      if (healthy) {
+        lifecycle = { recovered: await recordRecovery({ pole, observedAt }) };
+      } else if (diagnosis.createWorkOrder && pole.pole_id) {
+        // The lifecycle service deduplicates the active fault episode. Existing
+        // work-order creation remains the authoritative workflow implementation.
+        lifecycle = await recordFault({ pole, diagnosis, observedAt, source:value.source || 'TELEMETRY' });
         try { workOrder = await createAutoWorkOrder(pole.pole_id, diagnosis, diagnosis.message); }
         catch (woErr) { logger.error('Work order creation failed', { error:woErr.message }); }
       }
@@ -68,7 +72,7 @@ router.post('/node', async (req, res) => {
       if (diagnosis.severity === 'CRITICAL') broadcastAlert('FAULT_CRITICAL', { pole_number:value.pole_number, recommended_fault:diagnosis.recommendedFault, confidence_pct:diagnosis.confidencePct, message:diagnosis.message });
     }
 
-    res.json({ ok:true, pole_found:!!pole, ingestion, diagnosis, state_transition:stateTransition, work_order:workOrder });
+    res.json({ ok:true, pole_found:!!pole, ingestion, diagnosis, state_transition:stateTransition, lifecycle, work_order:workOrder });
   } catch (err) {
     logger.error('Telemetry ingest error', { error:err.message, pole:value.pole_number });
     res.status(err.status || 500).json({ ok:false, error:err.status ? err.message : 'Internal server error' });
