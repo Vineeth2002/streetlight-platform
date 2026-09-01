@@ -22,6 +22,13 @@ const assetSelect = `
   JOIN zones z ON z.zone_id = w.zone_id
 `;
 
+function validateBounds(req) {
+  const minLat=Number(req.query.min_lat),minLng=Number(req.query.min_lng),maxLat=Number(req.query.max_lat),maxLng=Number(req.query.max_lng);
+  if(![minLat,minLng,maxLat,maxLng].every(Number.isFinite)||minLat>=maxLat||minLng>=maxLng) return null;
+  if(minLat < -90 || maxLat > 90 || minLng < -180 || maxLng > 180) return null;
+  return {minLat,minLng,maxLat,maxLng};
+}
+
 router.get('/summary', async (req, res) => {
   try {
     const [city, zones, incidents, workOrders, sla, penalties, assets] = await Promise.all([
@@ -45,10 +52,15 @@ router.get('/summary', async (req, res) => {
 
 router.get('/assets', async (req,res)=>{
   try{
-    const minLat=Number(req.query.min_lat),minLng=Number(req.query.min_lng),maxLat=Number(req.query.max_lat),maxLng=Number(req.query.max_lng);
+    const bounds=validateBounds(req);
+    if(!bounds)return res.status(400).json({ok:false,error:'Valid geographic bounds are required'});
     const requested=Number(req.query.limit||3000),limit=Math.min(Math.max(Number.isFinite(requested)?Math.floor(requested):3000,100),5000);
-    if(![minLat,minLng,maxLat,maxLng].every(Number.isFinite)||minLat>=maxLat||minLng>=maxLng)return res.status(400).json({ok:false,error:'Valid min_lat, min_lng, max_lat and max_lng are required'});
-    const assets=await db.manyOrNone(`${assetSelect} WHERE p.current_status <> 'DECOMMISSIONED' AND p.geolocation && ST_MakeEnvelope($1,$2,$3,$4,4326) ORDER BY p.pole_id LIMIT $5`,[minLng,minLat,maxLng,maxLat,limit]);
+    const {minLat,minLng,maxLat,maxLng}=bounds;
+    const assets=await db.manyOrNone(`${assetSelect}
+      WHERE p.current_status <> 'DECOMMISSIONED'
+        AND p.geolocation IS NOT NULL
+        AND ST_Intersects(p.geolocation, ST_MakeEnvelope($1,$2,$3,$4,4326))
+      ORDER BY p.pole_id LIMIT $5`,[minLng,minLat,maxLng,maxLat,limit]);
     res.json({ok:true,generated_at:new Date().toISOString(),count:assets.length,truncated:assets.length>=limit,assets});
   }catch(err){logger.error('Dashboard asset viewport error',{error:err.message});res.status(500).json({ok:false,error:'Internal server error'});}
 });
