@@ -14,6 +14,9 @@ const migrations = [
   '008_sla_runtime.sql',
   '009_cabinet_correlation.sql',
   '010_fault_episodes.sql',
+  '011_staff_accountability.sql',
+  '012_contractor_penalty_ledger.sql',
+  '013_asset_intelligence.sql',
 ];
 
 async function runMigrations() {
