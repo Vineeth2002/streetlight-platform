@@ -32,7 +32,7 @@ SELECT
     c.title,
     c.contractor_id,
     co.company_name,
-    c.assigned_zone_id,
+    co.assigned_zone_id,
     z.zone_name,
     c.status,
     c.start_date,
@@ -44,18 +44,18 @@ SELECT
          THEN pr.awarded_value_inr - pr.estimated_value_inr END AS procurement_variance_inr,
     CASE WHEN pr.estimated_value_inr > 0 AND pr.awarded_value_inr IS NOT NULL
          THEN ROUND((pr.awarded_value_inr - pr.estimated_value_inr) / pr.estimated_value_inr * 100, 2) END AS procurement_variance_pct,
-    COALESCE(c.monthly_invoice_base,0) AS monthly_invoice_base_inr,
-    COALESCE(c.total_penalty_mtd,0) AS penalty_mtd_inr,
+    COALESCE(co.monthly_invoice_base,0) AS monthly_invoice_base_inr,
+    COALESCE(co.total_penalty_mtd,0) AS penalty_mtd_inr,
     COALESCE(p.penalties_ledger_inr,0) AS penalties_ledger_inr,
     COALESCE(p.penalized_orders,0) AS penalized_orders,
     COALESCE(w.work_order_count,0) AS work_order_count,
     COALESCE(w.resolved_work_order_count,0) AS resolved_work_order_count,
     COALESCE(w.open_work_order_count,0) AS open_work_order_count,
     COALESCE(w.execution_penalty_inr,0) AS execution_penalty_inr,
-    ROUND(COALESCE(c.monthly_invoice_base,0) - COALESCE(c.total_penalty_mtd,0),2) AS net_payable_basis_inr
+    ROUND(COALESCE(co.monthly_invoice_base,0) - COALESCE(co.total_penalty_mtd,0),2) AS net_payable_basis_inr
 FROM municipal_contracts c
 JOIN contractors co ON co.contractor_id=c.contractor_id
-LEFT JOIN zones z ON z.zone_id=c.assigned_zone_id
+LEFT JOIN zones z ON z.zone_id=co.assigned_zone_id
 LEFT JOIN LATERAL (
     SELECT estimated_value_inr, awarded_value_inr
     FROM procurement_records x
