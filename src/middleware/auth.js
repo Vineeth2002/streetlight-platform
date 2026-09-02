@@ -85,6 +85,85 @@ async function enforcePoleScope(req, res) {
   return true;
 }
 
+// ─── WORK-ORDER SCOPE AUTHORIZATION ─────────────────────────────────────────
+// Work orders are scoped by contractor ownership, EE zone, or field-engineer
+// assignment. Enforce the identity boundary before any ID-addressable route
+// can read or mutate a work order.
+async function enforceWorkOrderScope(req, res) {
+  if (req.baseUrl !== '/api/v1/work-orders') return true;
+
+  const scopedRoles = ['CONTRACTOR', 'GVMC_EE', 'FIELD_ENGINEER'];
+  if (!scopedRoles.includes(req.user.role)) return true;
+
+  if (req.user.role === 'CONTRACTOR' && !req.user.contractor_id) {
+    logger.warn('Contractor denied because no contractor scope is assigned', {
+      user_id: req.user.user_id,
+      path: req.path,
+    });
+    res.status(403).json({ ok: false, error: 'Access denied: user has no assigned contractor' });
+    return false;
+  }
+
+  if (req.user.role === 'GVMC_EE' && !req.user.zone_id) {
+    logger.warn('GVMC_EE denied because no zone is assigned', {
+      user_id: req.user.user_id,
+      path: req.path,
+    });
+    res.status(403).json({ ok: false, error: 'Access denied: user has no assigned zone' });
+    return false;
+  }
+
+  // The list endpoint currently has no FIELD_ENGINEER assignment predicate.
+  // Deny it at the shared boundary rather than returning another engineer's
+  // work orders. A later route-level query can safely restore this view.
+  if (req.user.role === 'FIELD_ENGINEER' && req.method === 'GET' && req.path === '/') {
+    logger.warn('Field engineer denied unscoped work-order listing', {
+      user_id: req.user.user_id,
+    });
+    res.status(403).json({ ok: false, error: 'Access denied: use an assigned work-order view' });
+    return false;
+  }
+
+  // ID-addressable work-order routes must prove ownership/scope before the
+  // handler runs. This covers detail, status, evidence, assignment-adjacent,
+  // verification and legacy PATCH paths.
+  const idMatch = req.path.match(/^\/(\d+)(?:\/|$)/);
+  if (idMatch) {
+    const workOrderId = Number.parseInt(idMatch[1], 10);
+    const workOrder = await db.oneOrNone(
+      `SELECT wo.work_order_id, wo.contractor_id, wo.assigned_to, w.zone_id
+       FROM work_orders wo
+       JOIN poles p ON wo.pole_id = p.pole_id
+       JOIN junction_boxes jb ON p.cabinet_id = jb.cabinet_id
+       JOIN wards w ON jb.ward_id = w.ward_id
+       WHERE wo.work_order_id = $1`,
+      [workOrderId]
+    );
+
+    if (!workOrder) {
+      res.status(404).json({ ok: false, error: 'Work order not found' });
+      return false;
+    }
+
+    const allowed =
+      (req.user.role === 'CONTRACTOR' && workOrder.contractor_id === req.user.contractor_id) ||
+      (req.user.role === 'GVMC_EE' && workOrder.zone_id === req.user.zone_id) ||
+      (req.user.role === 'FIELD_ENGINEER' && workOrder.assigned_to === req.user.user_id);
+
+    if (!allowed) {
+      logger.warn('Work-order scope denied', {
+        user_id: req.user.user_id,
+        role: req.user.role,
+        work_order_id: workOrderId,
+      });
+      res.status(403).json({ ok: false, error: 'Access denied' });
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // ─── VERIFY JWT TOKEN ────────────────────────────────────────────────────────
 async function requireAuth(req, res, next) {
   try {
@@ -108,6 +187,7 @@ async function requireAuth(req, res, next) {
 
     req.user = user;
     if (!(await enforcePoleScope(req, res))) return;
+    if (!(await enforceWorkOrderScope(req, res))) return;
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
