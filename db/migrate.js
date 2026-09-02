@@ -20,6 +20,7 @@ const migrations = [
   '014_durability_intelligence.sql',
   '015_procurement_intelligence.sql',
   '016_knowledge_policy_intelligence.sql',
+  '017_predictive_decision_intelligence.sql',
 ];
 
 async function runMigrations() {
