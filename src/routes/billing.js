@@ -32,6 +32,12 @@ router.post('/audit/dry-run', requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER'), a
 // ─── GET /api/v1/billing/penalties ───────────────────────────────────────────
 router.get('/penalties', requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE'), async (req, res) => {
   try {
+    const zoneId = req.user.role === 'GVMC_EE' ? req.user.zone_id : null;
+
+    if (req.user.role === 'GVMC_EE' && !zoneId) {
+      return res.status(403).json({ ok: false, error: 'No zone assigned to user' });
+    }
+
     const rows = await db.manyOrNone(`
       SELECT wo.work_order_id, wo.fault_category, wo.reported_timestamp,
              wo.sla_deadline, wo.days_overdue, wo.penalty_deducted, wo.penalty_type,
@@ -45,8 +51,9 @@ router.get('/penalties', requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_E
       LEFT JOIN contractors c ON wo.contractor_id = c.contractor_id
       WHERE wo.penalty_deducted > 0
         AND wo.reported_timestamp >= date_trunc('month', NOW())
+        AND ($1::int IS NULL OR w.zone_id = $1)
       ORDER BY wo.penalty_deducted DESC
-    `);
+    `, [zoneId]);
     const total = rows.reduce((s, r) => s + parseFloat(r.penalty_deducted), 0);
     res.json({ ok: true, count: rows.length, total_penalties_inr: total.toFixed(2), data: rows });
   } catch (err) {
@@ -58,6 +65,12 @@ router.get('/penalties', requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_E
 // ─── GET /api/v1/billing/summary ─────────────────────────────────────────────
 router.get('/summary', requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE'), async (req, res) => {
   try {
+    const zoneId = req.user.role === 'GVMC_EE' ? req.user.zone_id : null;
+
+    if (req.user.role === 'GVMC_EE' && !zoneId) {
+      return res.status(403).json({ ok: false, error: 'No zone assigned to user' });
+    }
+
     const summary = await db.manyOrNone(`
       SELECT z.zone_name, c.company_name AS contractor_name,
              c.monthly_invoice_base, c.total_penalty_mtd,
@@ -65,8 +78,9 @@ router.get('/summary', requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE'
              ROUND(c.total_penalty_mtd / NULLIF(c.monthly_invoice_base, 0) * 100, 2) AS penalty_pct
       FROM contractors c
       LEFT JOIN zones z ON c.assigned_zone_id = z.zone_id
+      WHERE ($1::int IS NULL OR c.assigned_zone_id = $1)
       ORDER BY c.total_penalty_mtd DESC
-    `);
+    `, [zoneId]);
     res.json({ ok: true, by_contractor: summary });
   } catch (err) {
     logger.error('Billing summary error', { error: err.message });
