@@ -1,0 +1,50 @@
+const express = require('express');
+const router = express.Router();
+const { pool } = require('../db');
+const { requireAuth, requireRole } = require('../middleware/auth');
+
+const READ_ROLES = ['SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE', 'READ_ONLY'];
+router.use(requireAuth, requireRole(READ_ROLES));
+
+function buildScope(req, values) {
+  if (req.user.role !== 'GVMC_EE') return '';
+  values.push(req.user.zone_id);
+  return ` AND zone_id=$${values.length}`;
+}
+
+router.get('/memory', async (req, res) => {
+  try {
+    const values = [], clauses = [];
+    if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
+    if (req.query.memory_state) { values.push(req.query.memory_state); clauses.push(`memory_state=$${values.length}`); }
+    const scope = buildScope(req, values);
+    const where = [...clauses, scope.replace(/^ AND /, '')].filter(Boolean);
+    const result = await pool.query(`SELECT * FROM v_municipal_capital_decision_institutional_memory${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY decided_at DESC NULLS LAST, decision_id DESC LIMIT 200`, values);
+    res.json({ data: result.rows, count: result.rowCount });
+  } catch (err) { res.status(500).json({ error: 'Failed to retrieve decision memory' }); }
+});
+
+router.get('/precedents', async (req, res) => {
+  try {
+    const values = [], clauses = [`memory_state='VALIDATED_DECISION_HISTORY'`];
+    if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
+    if (req.query.zone_id && req.user.role !== 'GVMC_EE') { values.push(req.query.zone_id); clauses.push(`zone_id=$${values.length}`); }
+    const scope = buildScope(req, values);
+    clauses.push(scope.replace(/^ AND /, ''));
+    const result = await pool.query(`SELECT * FROM v_municipal_capital_decision_institutional_memory WHERE ${clauses.filter(Boolean).join(' AND ')} ORDER BY observed_benefit_score DESC NULLS LAST, decided_at DESC NULLS LAST LIMIT 100`, values);
+    res.json({ data: result.rows, count: result.rowCount, advisory: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to retrieve decision precedents' }); }
+});
+
+router.get('/learning', async (req, res) => {
+  try {
+    const values = [], clauses = [];
+    if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
+    const scope = buildScope(req, values);
+    clauses.push(scope.replace(/^ AND /, ''));
+    const result = await pool.query(`SELECT * FROM v_municipal_capital_decision_learning${clauses.filter(Boolean).length ? ` WHERE ${clauses.filter(Boolean).join(' AND ')}` : ''} ORDER BY attributed_outcomes DESC, avg_observed_benefit_score DESC NULLS LAST`, values);
+    res.json({ data: result.rows, count: result.rowCount, advisory: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to retrieve decision learning' }); }
+});
+
+module.exports = router;
