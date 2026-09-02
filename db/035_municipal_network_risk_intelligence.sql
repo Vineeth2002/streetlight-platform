@@ -13,7 +13,10 @@ WITH asset AS (
          g.open_interventions
   FROM v_municipal_asset_risk_graph g
 ), dependency AS (
-  SELECT cabinet_id,dependency_risk_score,dependency_risk_band
+  SELECT cabinet_id,dependency_risk_score,
+    CASE WHEN dependency_risk_score>=70 THEN 'CRITICAL'
+         WHEN dependency_risk_score>=50 THEN 'HIGH'
+         WHEN dependency_risk_score>=25 THEN 'MEDIUM' ELSE 'LOW' END AS dependency_risk_band
   FROM v_cabinet_dependency_intelligence
 ), enriched AS (
   SELECT a.*,COALESCE(d.dependency_risk_score,0) AS dependency_risk_score,
@@ -32,8 +35,9 @@ WITH asset AS (
   SELECT 'ZONE',zone_id::varchar,NULL,zone_id,MAX(zone_name),NULL,NULL,NULL,NULL,NULL
   FROM enriched WHERE zone_id IS NOT NULL GROUP BY zone_id
   UNION ALL
-  SELECT 'ROAD',COALESCE(road_name,'UNNAMED')::varchar,NULL,MAX(zone_id),MAX(zone_name),NULL,NULL,road_name,NULL,NULL
-  FROM enriched GROUP BY COALESCE(road_name,'UNNAMED')
+  SELECT 'ROAD',CONCAT(COALESCE(zone_id::varchar,'0'),'::',COALESCE(road_name,'UNNAMED')),
+         NULL,MAX(zone_id),MAX(zone_name),NULL,NULL,road_name,NULL,NULL
+  FROM enriched GROUP BY zone_id,road_name
   UNION ALL
   SELECT 'CONTRACTOR',contractor_id::varchar,NULL,MAX(zone_id),MAX(zone_name),NULL,NULL,NULL,contractor_id,MAX(contractor_name)
   FROM enriched WHERE contractor_id IS NOT NULL GROUP BY contractor_id
@@ -55,7 +59,7 @@ WITH asset AS (
     ON (g.cluster_type='CABINET' AND e.cabinet_id=g.cabinet_id)
     OR (g.cluster_type='WARD' AND e.ward_id=g.ward_id)
     OR (g.cluster_type='ZONE' AND e.zone_id=g.zone_id)
-    OR (g.cluster_type='ROAD' AND COALESCE(e.road_name,'UNNAMED')=g.cluster_key)
+    OR (g.cluster_type='ROAD' AND CONCAT(COALESCE(e.zone_id::varchar,'0'),'::',COALESCE(e.road_name,'UNNAMED'))=g.cluster_key)
     OR (g.cluster_type='CONTRACTOR' AND e.contractor_id=g.contractor_id)
   GROUP BY g.cluster_type,g.cluster_key,g.cabinet_id,g.zone_id,g.zone_name,g.ward_id,g.ward_number,g.road_name,g.contractor_id,g.contractor_name
 ), scored AS (
