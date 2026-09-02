@@ -19,5 +19,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Validate migration manifest
+        run: npm run migrate:check
       - name: Run tests
         run: npm test -- --coverage
