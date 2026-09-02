@@ -18,6 +18,7 @@ const migrations = [
   '012_contractor_penalty_ledger.sql',
   '013_asset_intelligence.sql',
   '014_durability_intelligence.sql',
+  '015_procurement_intelligence.sql',
 ];
 
 async function runMigrations() {
