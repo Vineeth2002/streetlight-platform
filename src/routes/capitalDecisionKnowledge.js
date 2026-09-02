@@ -47,4 +47,31 @@ router.get('/learning', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to retrieve decision learning' }); }
 });
 
+router.get('/revalidated', async (req, res) => {
+  try {
+    const values = [], clauses = [];
+    if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
+    if (req.query.revalidation_state) { values.push(req.query.revalidation_state); clauses.push(`revalidation_state=$${values.length}`); }
+    if (req.query.zone_id && req.user.role !== 'GVMC_EE') { values.push(req.query.zone_id); clauses.push(`zone_id=$${values.length}`); }
+    const scope = buildScope(req, values);
+    if (scope) clauses.push(scope.replace(/^ AND /, ''));
+    const where = clauses.filter(Boolean);
+    const result = await pool.query(`SELECT * FROM v_municipal_capital_decision_knowledge_revalidation${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY latest_review_resolved_at DESC NULLS LAST, decision_id DESC LIMIT 200`, values);
+    res.json({ data: result.rows, count: result.rowCount, advisory: true, human_review_required: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to retrieve revalidated decision knowledge' }); }
+});
+
+router.get('/revalidation-summary', async (req, res) => {
+  try {
+    const values = [], clauses = [];
+    if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
+    if (req.query.zone_id && req.user.role !== 'GVMC_EE') { values.push(req.query.zone_id); clauses.push(`zone_id=$${values.length}`); }
+    const scope = buildScope(req, values);
+    if (scope) clauses.push(scope.replace(/^ AND /, ''));
+    const where = clauses.filter(Boolean);
+    const result = await pool.query(`SELECT * FROM v_municipal_capital_decision_knowledge_revalidation_summary${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY decisions DESC`, values);
+    res.json({ data: result.rows, count: result.rowCount, advisory: true, human_review_required: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to retrieve knowledge revalidation summary' }); }
+});
+
 module.exports = router;
