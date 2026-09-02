@@ -1,0 +1,2 @@
+-- Migration 066 is registered in db/migrate.js.
+-- This marker file is intentionally non-executable and exists only as a deployment audit marker.
