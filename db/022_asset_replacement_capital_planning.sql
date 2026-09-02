@@ -60,41 +60,21 @@ WITH reliability AS (
     ORDER BY ars.pole_id, ars.as_of DESC
 ),
 age_data AS (
-    SELECT
-        p.pole_id,
+    SELECT p.pole_id,
         CASE WHEN p.installation_date IS NOT NULL
              THEN GREATEST(EXTRACT(EPOCH FROM (NOW() - p.installation_date::timestamptz)) / 31557600.0,0)
         END AS asset_age_years
     FROM poles p
 )
 SELECT
-    p.pole_id,
-    p.pole_number,
-    p.current_status,
-    p.installation_date,
-    p.last_maintenance,
-    p.road_name,
-    p.luminaire_wattage,
-    j.nominal_voltage,
-    j.rated_capacity_kva,
-    w.ward_number,
-    z.zone_id,
-    z.zone_name,
-    r.risk_score,
-    r.risk_band,
-    r.repair_count_90d,
-    r.repair_count_365d,
-    r.recurrence_count_90d,
-    r.mttr_hours_365d,
-    r.mtbf_hours_365d,
-    r.days_since_last_repair,
-    r.last_failure_at,
-    r.dominant_fault_category,
-    a.asset_age_years,
-    wa.warranty_end,
+    p.pole_id,p.pole_number,p.current_status,p.installation_date,p.last_maintenance,p.road_name,
+    p.luminaire_wattage,j.nominal_voltage,j.rated_capacity_kva,w.ward_number,z.zone_id,z.zone_name,
+    r.risk_score,r.risk_band,r.repair_count_90d,r.repair_count_365d,r.recurrence_count_90d,
+    r.mttr_hours_365d,r.mtbf_hours_365d,r.days_since_last_repair,r.last_failure_at,r.dominant_fault_category,
+    a.asset_age_years,wa.warranty_end,
     CASE WHEN wa.warranty_end IS NOT NULL AND wa.warranty_end >= NOW() THEN TRUE ELSE FALSE END AS under_warranty,
     COALESCE(open_orders.open_work_orders,0) AS open_work_orders,
-    COALESCE(recent_repair.recent_repair_cost_inr,0) AS recent_repair_cost_inr,
+    COALESCE(recent_execution.recent_execution_penalty_inr,0) AS recent_execution_penalty_inr,
     CASE
         WHEN COALESCE(r.risk_score,0) >= 85 OR COALESCE(r.recurrence_count_90d,0) >= 3 THEN 'CRITICAL'
         WHEN COALESCE(r.risk_score,0) >= 70 OR COALESCE(r.repair_count_365d,0) >= 5 THEN 'HIGH'
@@ -114,25 +94,20 @@ LEFT JOIN junction_boxes j ON j.cabinet_id=p.cabinet_id
 LEFT JOIN wards w ON w.ward_id=j.ward_id
 LEFT JOIN zones z ON z.zone_id=w.zone_id
 LEFT JOIN LATERAL (
-    SELECT ca.warranty_end
-    FROM contract_asset_assignments ca
+    SELECT ca.warranty_end FROM contract_asset_assignments ca
     WHERE ca.pole_id=p.pole_id AND ca.assignment_status='ACTIVE'
-    ORDER BY ca.warranty_end DESC NULLS LAST
-    LIMIT 1
+    ORDER BY ca.warranty_end DESC NULLS LAST LIMIT 1
 ) wa ON TRUE
 LEFT JOIN LATERAL (
-    SELECT COUNT(*)::int AS open_work_orders
-    FROM work_orders wo
-    WHERE wo.pole_id=p.pole_id
-      AND wo.ticket_status IN ('PENDING','ASSIGNED','IN_PROGRESS','SLA_VIOLATED')
+    SELECT COUNT(*)::int AS open_work_orders FROM work_orders wo
+    WHERE wo.pole_id=p.pole_id AND wo.ticket_status IN ('PENDING','ASSIGNED','IN_PROGRESS','SLA_VIOLATED')
 ) open_orders ON TRUE
 LEFT JOIN LATERAL (
-    SELECT COALESCE(SUM(wo.penalty_deducted),0) AS recent_repair_cost_inr
+    SELECT COALESCE(SUM(wo.penalty_deducted),0) AS recent_execution_penalty_inr
     FROM work_orders wo
-    WHERE wo.pole_id=p.pole_id
-      AND wo.ticket_status='RESOLVED'
+    WHERE wo.pole_id=p.pole_id AND wo.ticket_status='RESOLVED'
       AND wo.resolved_timestamp >= NOW() - INTERVAL '365 days'
-) recent_repair ON TRUE
+) recent_execution ON TRUE
 WHERE p.current_status <> 'DECOMMISSIONED';
 
 CREATE INDEX IF NOT EXISTS idx_poles_installation_date ON poles(installation_date);
