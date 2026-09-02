@@ -54,17 +54,18 @@ router.post('/attributions',requireRole(...WRITE),async(req,res)=>{
     const outcome=await db.oneOrNone('SELECT * FROM v_municipal_capital_program_outcomes WHERE assessment_id=$1',[assessmentId]);
     if(!outcome)return res.status(404).json({ok:false,error:'Outcome assessment not found'});
     if(Number(outcome.capital_program_id)!==Number(link.capital_program_id))return res.status(409).json({ok:false,error:'Outcome assessment does not belong to the linked capital program'});
+    const assessment=await db.one('SELECT * FROM municipal_capital_program_outcome_assessments WHERE assessment_id=$1',[assessmentId]);
 
     const existing=await db.oneOrNone('SELECT attribution_id FROM municipal_capital_scenario_program_outcome_attributions WHERE link_id=$1 AND outcome_assessment_id=$2',[linkId,assessmentId]);
     if(existing)return res.status(409).json({ok:false,error:'Outcome attribution already exists for this scenario-program link and assessment',attribution_id:existing.attribution_id});
 
     const baselineSnapshot=(body.baseline_snapshot&&typeof body.baseline_snapshot==='object'&&!Array.isArray(body.baseline_snapshot))?body.baseline_snapshot:{
-      expected_benefit_score:outcome.expected_benefit_score,
-      health_score:outcome.baseline_health_score,
-      reliability_score:outcome.baseline_reliability_score,
-      open_work_orders:outcome.baseline_open_work_orders,
-      sla_exposure:outcome.baseline_sla_exposure,
-      penalty_inr:outcome.baseline_penalty_inr
+      expected_benefit_score:assessment.expected_benefit_score,
+      health_score:assessment.baseline_health_score,
+      reliability_score:assessment.baseline_reliability_score,
+      open_work_orders:assessment.baseline_open_work_orders,
+      sla_exposure:assessment.baseline_sla_exposure,
+      penalty_inr:assessment.baseline_penalty_inr
     };
     const outcomeSnapshot=(body.outcome_snapshot&&typeof body.outcome_snapshot==='object'&&!Array.isArray(body.outcome_snapshot))?body.outcome_snapshot:{
       observed_benefit_score:outcome.observed_benefit_score,
