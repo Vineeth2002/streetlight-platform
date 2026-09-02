@@ -1,0 +1,13 @@
+'use strict';
+const express=require('express');
+const db=require('../../config/database');
+const logger=require('../utils/logger');
+const {requireAuth,requireRole}=require('../middleware/auth');
+const router=express.Router();
+const READ=['SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','READ_ONLY'];
+router.use(requireAuth,requireRole(...READ));
+function scope(user,params,where,alias='v'){if(user.role==='GVMC_EE'){params.push(user.zone_id);where.push(`${alias}.zone_id=$${params.length}`);}}
+router.get('/candidates',async(req,res)=>{try{const params=[],where=[];scope(req.user,params,where);if(req.query.min_risk!==undefined){const n=Number(req.query.min_risk);if(!Number.isFinite(n)||n<0||n>100)return res.status(400).json({ok:false,error:'Invalid min_risk'});params.push(n);where.push(`v.propagation_risk_score>=$${params.length}`);}const rows=await db.manyOrNone(`SELECT * FROM v_failure_propagation_candidates v ${where.length?'WHERE '+where.join(' AND '):''} ORDER BY propagation_risk_score DESC,cabinet_id LIMIT 1000`,params);res.json({ok:true,advisory:true,failure_propagation_intelligence:true,data:rows});}catch(e){logger.error('Failure propagation candidates error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}});
+router.get('/cabinets/:id',async(req,res)=>{const id=Number.parseInt(req.params.id,10);if(!Number.isInteger(id))return res.status(400).json({ok:false,error:'Invalid cabinet id'});try{const params=[id],where=['v.cabinet_id=$1'];scope(req.user,params,where);const cabinet=await db.oneOrNone(`SELECT * FROM v_failure_propagation_candidates v WHERE ${where.join(' AND ')}`,params);if(!cabinet)return res.status(404).json({ok:false,error:'Cabinet not found'});const assets=await db.manyOrNone(`SELECT p.pole_id,p.pole_number,p.current_status,p.road_name,p.node_id,p.luminaire_wattage FROM poles p WHERE p.cabinet_id=$1 AND p.current_status<>'DECOMMISSIONED' ORDER BY p.pole_number`,[id]);res.json({ok:true,advisory:true,failure_propagation_intelligence:true,data:{cabinet,assets}});}catch(e){logger.error('Failure propagation cabinet error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}});
+router.get('/summary',async(req,res)=>{try{const params=[],where=[];scope(req.user,params,where);const rows=await db.manyOrNone(`SELECT * FROM v_failure_propagation_summary v ${where.length?'WHERE '+where.join(' AND '):''} ORDER BY critical_cabinets DESC,high_risk_cabinets DESC,zone_id`,params);res.json({ok:true,advisory:true,failure_propagation_intelligence:true,data:rows});}catch(e){logger.error('Failure propagation summary error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}});
+module.exports=router;
