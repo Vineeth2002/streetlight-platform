@@ -61,13 +61,17 @@ LEFT JOIN zones z ON z.zone_id=cp.zone_id
 LEFT JOIN municipal_capital_program_events e ON e.capital_program_id=cp.capital_program_id
 GROUP BY cp.capital_program_id,z.zone_name;
 
-CREATE OR REPLACE VIEW v_municipal_capital_program_summary AS
-SELECT status,governance_state,COUNT(*)::int AS program_count,
+DROP VIEW IF EXISTS v_municipal_capital_program_summary;
+CREATE VIEW v_municipal_capital_program_summary AS
+SELECT zone_id,zone_name,status,governance_state,COUNT(*)::int AS program_count,
        COALESCE(SUM(proposed_amount_inr),0) AS proposed_amount_inr,
        COALESCE(SUM(approved_amount_inr),0) AS approved_amount_inr,
-       ROUND(AVG(priority_score),2) AS avg_priority_score
-FROM v_municipal_capital_program_governance cp
-LEFT JOIN municipal_capital_plans p ON p.plan_id=cp.plan_id
-GROUP BY status,governance_state;
+       ROUND(AVG(plan_priority_score),2) AS avg_priority_score
+FROM (
+  SELECT cp.*,p.priority_score AS plan_priority_score
+  FROM v_municipal_capital_program_governance cp
+  LEFT JOIN municipal_capital_plans p ON p.plan_id=cp.plan_id
+) s
+GROUP BY zone_id,zone_name,status,governance_state;
 
 COMMIT;
