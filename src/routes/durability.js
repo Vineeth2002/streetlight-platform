@@ -34,15 +34,16 @@ router.get('/summary', requireRole(...READ), async (req,res) => {
     const row=await db.one(`
       SELECT COUNT(*)::int AS assigned_assets,
         COUNT(*) FILTER (WHERE a.warranty_start <= NOW() AND (a.warranty_end IS NULL OR a.warranty_end >= NOW()))::int AS assets_under_warranty,
-        COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM work_orders wo WHERE wo.pole_id=a.pole_id AND wo.reported_timestamp >= a.warranty_start AND (a.warranty_end IS NULL OR wo.reported_timestamp <= a.warranty_end) AND wo.reported_timestamp >= a.warranty_start))::int AS warranty_failure_assets,
+        COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM work_orders wo WHERE wo.pole_id=a.pole_id AND wo.reported_timestamp >= a.warranty_start AND (a.warranty_end IS NULL OR wo.reported_timestamp <= a.warranty_end)))::int AS warranty_failure_assets,
         COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM work_orders wo WHERE wo.pole_id=a.pole_id AND wo.reported_timestamp >= a.warranty_start AND (a.warranty_end IS NULL OR wo.reported_timestamp <= a.warranty_end)))::int AS warranty_repair_assets
       FROM contract_asset_assignments a ${where}` ,params);
+    const contractorConditions=conditions.slice();
     const contractors=await db.manyOrNone(`
       SELECT c.contractor_id,c.company_name,COUNT(DISTINCT a.pole_id)::int assigned_assets,
         COUNT(DISTINCT a.pole_id) FILTER (WHERE EXISTS (SELECT 1 FROM work_orders wo WHERE wo.pole_id=a.pole_id AND wo.reported_timestamp BETWEEN a.warranty_start AND COALESCE(a.warranty_end,'infinity'::timestamptz)))::int warranty_failure_assets,
         ROUND(100.0 * COUNT(DISTINCT a.pole_id) FILTER (WHERE NOT EXISTS (SELECT 1 FROM work_orders wo WHERE wo.pole_id=a.pole_id AND wo.reported_timestamp BETWEEN a.warranty_start AND COALESCE(a.warranty_end,'infinity'::timestamptz))) / NULLIF(COUNT(DISTINCT a.pole_id),0),2) AS durability_rate_pct
       FROM contract_asset_assignments a JOIN municipal_contracts mc ON mc.contract_id=a.contract_id JOIN contractors c ON c.contractor_id=mc.contractor_id
-      ${where.replaceAll('a.', 'a.')} GROUP BY c.contractor_id,c.company_name ORDER BY durability_rate_pct ASC NULLS LAST`,params);
+      ${contractorConditions.length?'WHERE '+contractorConditions.join(' AND '):''} GROUP BY c.contractor_id,c.company_name ORDER BY durability_rate_pct ASC NULLS LAST`,params);
     res.json({ok:true,methodology:'Warranty-linked asset durability; failures are work orders reported inside the recorded warranty window. No automatic penalty is created.',summary:row,contractors});
   } catch(err) { logger.error('Durability summary error',{error:err.message}); res.status(500).json({ok:false,error:'Internal server error'}); }
 });
@@ -62,9 +63,10 @@ router.get('/:poleId', requireRole(...READ), async (req,res) => {
       FROM contract_asset_assignments a JOIN municipal_contracts mc ON mc.contract_id=a.contract_id JOIN contractors c ON c.contractor_id=mc.contractor_id LEFT JOIN contract_segments cs ON cs.segment_id=a.segment_id
       WHERE a.pole_id=$1 ORDER BY a.warranty_start DESC`,[poleId]);
     if(req.user.role==='CONTRACTOR' && assignments.every(a=>a.contractor_id!==req.user.contractor_id))return res.status(403).json({ok:false,error:'Access denied'});
-    const orders=await db.manyOrNone(`SELECT work_order_id,fault_category,ticket_status,reported_timestamp,resolved_timestamp,contractor_id,penalty_deducted FROM work_orders WHERE pole_id=$1 ORDER BY reported_timestamp DESC LIMIT 100`,[poleId]);
-    const warrantyFailures=orders.filter(o=>assignments.some(a=>new Date(o.reported_timestamp)>=new Date(a.warranty_start)&&(!a.warranty_end||new Date(o.reported_timestamp)<=new Date(a.warranty_end))));
-    res.json({ok:true,asset:pole,assignments,work_orders:orders,warranty_failures:warrantyFailures,durability:{assignment_count:assignments.length,warranty_failure_count:warrantyFailures.length,repeat_repair_rate_pct:orders.length?Number((warrantyFailures.length/orders.length*100).toFixed(2)):0}});
+    const visibleAssignments=req.user.role==='CONTRACTOR'?assignments.filter(a=>a.contractor_id===req.user.contractor_id):assignments;
+    const orders=await db.manyOrNone(`SELECT work_order_id,fault_category,ticket_status,reported_timestamp,resolved_timestamp,contractor_id,penalty_deducted FROM work_orders WHERE pole_id=$1 ${req.user.role==='CONTRACTOR'?'AND contractor_id=$2':''} ORDER BY reported_timestamp DESC LIMIT 100`,req.user.role==='CONTRACTOR'?[poleId,req.user.contractor_id]:[poleId]);
+    const warrantyFailures=orders.filter(o=>visibleAssignments.some(a=>new Date(o.reported_timestamp)>=new Date(a.warranty_start)&&(!a.warranty_end||new Date(o.reported_timestamp)<=new Date(a.warranty_end))));
+    res.json({ok:true,asset:pole,assignments:visibleAssignments,work_orders:orders,warranty_failures:warrantyFailures,durability:{assignment_count:visibleAssignments.length,warranty_failure_count:warrantyFailures.length,repeat_repair_rate_pct:orders.length?Number((warrantyFailures.length/orders.length*100).toFixed(2)):0}});
   } catch(err) { logger.error('Durability detail error',{error:err.message}); res.status(500).json({ok:false,error:'Internal server error'}); }
 });
 
