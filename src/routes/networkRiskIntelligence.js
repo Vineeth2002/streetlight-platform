@@ -39,7 +39,13 @@ router.get('/summary',async(req,res)=>{
   try{
     const params=[],where=[];
     scope(req.user,params,where);
-    const rows=await db.manyOrNone(`SELECT * FROM v_municipal_network_risk_summary v ${where.length?'WHERE EXISTS (SELECT 1 FROM v_municipal_network_risk_clusters s WHERE s.cluster_type=v.cluster_type AND s.zone_id=$1)':''} ORDER BY critical_clusters DESC,high_risk_clusters DESC,cluster_type`,params);
+    const rows=await db.manyOrNone(`SELECT cluster_type,COUNT(*)::int AS clusters,SUM(assets)::int AS assets,
+      COUNT(*) FILTER(WHERE network_risk_band='CRITICAL')::int AS critical_clusters,
+      COUNT(*) FILTER(WHERE network_risk_band='HIGH')::int AS high_risk_clusters,
+      COUNT(*) FILTER(WHERE dominant_network_signal='SYSTEMIC_FAILURE_CONCENTRATION')::int AS systemic_clusters,
+      ROUND(AVG(network_risk_score),2) AS avg_network_risk_score,MAX(network_risk_score) AS max_network_risk_score
+      FROM v_municipal_network_risk_clusters v ${where.length?'WHERE '+where.join(' AND '):''}
+      GROUP BY cluster_type ORDER BY critical_clusters DESC,high_risk_clusters DESC,cluster_type`,params);
     res.json({ok:true,advisory:true,municipal_network_risk:true,data:rows});
   }catch(e){logger.error('Network risk summary error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}
 });
