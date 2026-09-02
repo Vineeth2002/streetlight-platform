@@ -2,7 +2,13 @@ const jwt        = require('jsonwebtoken');
 const db         = require('../../config/database');
 const logger     = require('../utils/logger');
 
-const JWT_SECRET  = process.env.JWT_SECRET || 'change_this_in_production';
+// Fail closed: production/startup requires JWT_SECRET. Never fall back to a
+// known development secret because that would allow token forgery if the
+// middleware is loaded outside the normal startup path.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required');
+}
 
 // ─── VERIFY JWT TOKEN ────────────────────────────────────────────────────────
 async function requireAuth(req, res, next) {
