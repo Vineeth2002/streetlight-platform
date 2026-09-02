@@ -62,6 +62,13 @@ async function applyTelemetryState({ poleNumber, healthy, signalPresent = true, 
 
   if (!pole) return { changed: false, reason: 'ASSET_NOT_FOUND' };
 
+  // Preserve workflow-owned states before deriving a telemetry state. This is
+  // intentionally checked here as well as in transitionPoleState so the
+  // telemetry path cannot accidentally bypass the workflow ownership rule.
+  if (['UNDER_REPAIR', 'DECOMMISSIONED'].includes(pole.current_status)) {
+    return { changed: false, reason: 'STATE_OWNED_BY_WORKFLOW', pole };
+  }
+
   // Healthy telemetry is evidence of electrical recovery, not proof that an
   // active field repair has been completed. Human execution verification owns
   // the final transition to OPERATIONAL while a work order remains active.
