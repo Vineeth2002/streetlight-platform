@@ -90,6 +90,12 @@ async function enforceAttachmentScope(req, res) {
     return false;
   }
 
+  if (req.method === 'GET' && req.path === '/types/summary') {
+    logger.warn('GVMC_EE denied unscoped attachment type summary', { user_id: req.user.user_id, zone_id: req.user.zone_id });
+    res.status(403).json({ ok: false, error: 'Access denied: attachment type summary is not zone-scoped' });
+    return false;
+  }
+
   const idMatch = req.path.match(/^\/(?:pole\/)?(\d+)(?:\/|$)/);
   if ((req.method === 'GET' || req.method === 'PATCH') && idMatch) {
     const attachmentIdOrPoleId = Number.parseInt(idMatch[1], 10);
