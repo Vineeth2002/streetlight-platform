@@ -9,6 +9,22 @@ const router = express.Router();
 router.use(requireAuth);
 router.use(requireRole('SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','CONTRACTOR','FIELD_ENGINEER','READ_ONLY'));
 
+function assertScopedIdentity(user, res) {
+  if (user.role === 'GVMC_EE' && !user.zone_id) {
+    res.status(403).json({ok:false,error:'Access denied: user has no assigned zone'});
+    return false;
+  }
+  if (user.role === 'CONTRACTOR' && !user.contractor_id) {
+    res.status(403).json({ok:false,error:'Access denied: user has no assigned contractor'});
+    return false;
+  }
+  if (user.role === 'FIELD_ENGINEER' && !user.user_id) {
+    res.status(403).json({ok:false,error:'Access denied: user identity is unavailable'});
+    return false;
+  }
+  return true;
+}
+
 function applyScope(user, params, conditions) {
   if (user.role === 'GVMC_EE') {
     params.push(user.zone_id); conditions.push(`v.zone_id=$${params.length}`);
@@ -21,6 +37,7 @@ function applyScope(user, params, conditions) {
 
 router.get('/summary', async (req,res) => {
   try {
+    if (!assertScopedIdentity(req.user,res)) return;
     const params=[],conditions=[]; applyScope(req.user,params,conditions);
     const where=conditions.length?`WHERE ${conditions.join(' AND ')}`:'';
     const totals=await db.one(`SELECT COUNT(*)::int AS assets,ROUND(AVG(health_score),2) AS avg_health,COUNT(*) FILTER (WHERE health_band='EXCELLENT')::int AS excellent,COUNT(*) FILTER (WHERE health_band='GOOD')::int AS good,COUNT(*) FILTER (WHERE health_band='FAIR')::int AS fair,COUNT(*) FILTER (WHERE health_band='POOR')::int AS poor,COUNT(*) FILTER (WHERE health_band='CRITICAL')::int AS critical FROM v_asset_health_index v ${where}`,params);
@@ -33,6 +50,7 @@ router.get('/:poleId', async (req,res) => {
   const poleId=Number.parseInt(req.params.poleId,10);
   if(!Number.isInteger(poleId))return res.status(400).json({ok:false,error:'Invalid pole id'});
   try {
+    if (!assertScopedIdentity(req.user,res)) return;
     const params=[poleId],conditions=['v.pole_id=$1']; applyScope(req.user,params,conditions);
     const row=await db.oneOrNone(`SELECT * FROM v_asset_health_index v WHERE ${conditions.join(' AND ')}` ,params);
     if(!row)return res.status(404).json({ok:false,error:'Asset not found or access denied'});
