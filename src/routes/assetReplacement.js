@@ -12,6 +12,22 @@ const READ_ROLES = ['SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','CONTRACTOR','FI
 const PLAN_ROLES = ['SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE'];
 router.use(requireRole(...READ_ROLES));
 
+function assertScopedIdentity(user, res) {
+  if (user.role === 'GVMC_EE' && !user.zone_id) {
+    res.status(403).json({ok:false,error:'Access denied: user has no assigned zone'});
+    return false;
+  }
+  if (user.role === 'CONTRACTOR' && !user.contractor_id) {
+    res.status(403).json({ok:false,error:'Access denied: user has no assigned contractor'});
+    return false;
+  }
+  if (user.role === 'FIELD_ENGINEER' && !user.user_id) {
+    res.status(403).json({ok:false,error:'Access denied: user identity is unavailable'});
+    return false;
+  }
+  return true;
+}
+
 function scopeCandidate(user, params, conditions) {
   if (user.role === 'GVMC_EE') { params.push(user.zone_id); conditions.push(`zone_id=$${params.length}`); }
   if (user.role === 'CONTRACTOR') {
@@ -26,6 +42,7 @@ function scopeCandidate(user, params, conditions) {
 
 router.get('/candidates', async (req,res) => {
   try {
+    if (!assertScopedIdentity(req.user,res)) return;
     const params=[],conditions=[]; scopeCandidate(req.user,params,conditions);
     const priority=req.query.priority;
     if(priority) { if(!['LOW','MEDIUM','HIGH','CRITICAL'].includes(priority)) return res.status(400).json({ok:false,error:'Invalid priority'}); params.push(priority); conditions.push(`replacement_priority=$${params.length}`); }
@@ -38,6 +55,7 @@ router.get('/candidates', async (req,res) => {
 
 router.get('/plans', async (req,res) => {
   try {
+    if (!assertScopedIdentity(req.user,res)) return;
     const params=[],conditions=[];
     if(req.user.role==='GVMC_EE'){params.push(req.user.zone_id);conditions.push(`v.zone_id=$${params.length}`);}
     if(req.user.role==='CONTRACTOR'){params.push(req.user.contractor_id);conditions.push(`EXISTS (SELECT 1 FROM contract_asset_assignments ca JOIN municipal_contracts mc ON mc.contract_id=ca.contract_id WHERE ca.pole_id=v.pole_id AND mc.contractor_id=$${params.length})`);}
@@ -50,6 +68,7 @@ router.get('/plans', async (req,res) => {
 const planSchema=Joi.object({pole_id:Joi.number().integer().positive().required(),budget_id:Joi.number().integer().positive().allow(null),priority:Joi.string().valid('LOW','MEDIUM','HIGH','CRITICAL').required(),proposed_replacement_date:Joi.date().iso().allow(null),estimated_cost_inr:Joi.number().min(0).allow(null),reason:Joi.string().min(5).max(2000).required(),notes:Joi.string().max(4000).allow('',null),metadata:Joi.object().default({})});
 
 router.post('/plans',requireRole(...PLAN_ROLES),async(req,res)=>{
+  if (!assertScopedIdentity(req.user,res)) return;
   const {error,value}=planSchema.validate(req.body,{abortEarly:false});
   if(error)return res.status(400).json({ok:false,error:error.details.map(x=>x.message).join('; ')});
   try {
@@ -64,6 +83,7 @@ router.post('/plans',requireRole(...PLAN_ROLES),async(req,res)=>{
 });
 
 router.patch('/plans/:id/status',requireRole(...PLAN_ROLES),async(req,res)=>{
+  if (!assertScopedIdentity(req.user,res)) return;
   const id=Number.parseInt(req.params.id,10); if(!Number.isInteger(id))return res.status(400).json({ok:false,error:'Invalid plan id'});
   const schema=Joi.object({status:Joi.string().valid('PROPOSED','APPROVED','SCHEDULED','COMPLETED','DEFERRED','CANCELLED').required(),notes:Joi.string().max(4000).allow('',null)});
   const {error,value}=schema.validate(req.body);if(error)return res.status(400).json({ok:false,error:error.message});
