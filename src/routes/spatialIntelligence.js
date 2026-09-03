@@ -9,6 +9,14 @@ const router = express.Router();
 router.use(requireAuth);
 router.use(requireRole('SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','READ_ONLY'));
 
+function assertScopedIdentity(user, res) {
+  if (user.role === 'GVMC_EE' && !user.zone_id) {
+    res.status(403).json({ ok:false, error:'Access denied: user has no assigned zone' });
+    return false;
+  }
+  return true;
+}
+
 function zoneScope(req, params, conditions, alias='v') {
   if (req.user.role === 'GVMC_EE') {
     params.push(req.user.zone_id);
@@ -17,6 +25,7 @@ function zoneScope(req, params, conditions, alias='v') {
 }
 
 router.get('/hotspots', async (req,res) => {
+  if (!assertScopedIdentity(req.user, res)) return;
   try {
     const params=[],conditions=[];
     zoneScope(req,params,conditions);
@@ -32,6 +41,7 @@ router.get('/hotspots', async (req,res) => {
 });
 
 router.get('/roads', async (req,res) => {
+  if (!assertScopedIdentity(req.user, res)) return;
   try {
     const params=[],conditions=[];
     zoneScope(req,params,conditions);
