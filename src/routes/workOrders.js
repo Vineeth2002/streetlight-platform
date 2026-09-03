@@ -160,7 +160,7 @@ router.post('/', requireRole('SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE'), async
     }
     const existing = await db.oneOrNone(`SELECT work_order_id FROM work_orders WHERE pole_id = $1 AND fault_category = $2 AND ticket_status IN ('PENDING','ASSIGNED','IN_PROGRESS','SLA_VIOLATED') LIMIT 1`, [value.pole_id, value.fault_category]);
     if (existing) return res.status(409).json({ ok: false, error: 'Open ticket already exists for this pole and fault type', existing_work_order_id: existing.work_order_id });
-    const wo = await db.one(`INSERT INTO work_orders (pole_id, contractor_id, fault_category, fault_description, reported_by, reported_timestamp) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`, [value.pole_id, value.contractor_id || null, value.fault_category, value.fault_description || null, value.reported_by || req.user.full_name]);
+    const wo = await db.one(`INSERT INTO work_orders (pole_id, contractor_id, fault_category, fault_description, reported_by, reported_timestamp) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`, [value.pole_id, value.contractor_id || null, value.fault_description || null, value.fault_description || null, value.reported_by || req.user.full_name]);
     await auditLog(req.user.user_id, 'WORK_ORDER_CREATED', 'work_orders', wo.work_order_id, true, { fault_category: value.fault_category }, req);
     logger.info('Work order created', { work_order_id: wo.work_order_id, by: req.user.user_id });
     res.status(201).json({ ok: true, data: wo });
@@ -218,9 +218,38 @@ router.patch('/:id/verify', requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVM
 
 router.get('/accuracy/summary', requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE'), async (req, res) => {
   try {
-    const overall = await db.oneOrNone(`SELECT COUNT(*) AS total_verified, COUNT(*) FILTER (WHERE correct_prediction) AS correct_count, ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct FROM fault_feedback`);
-    const byFaultType = await db.manyOrNone(`SELECT recommended_fault, COUNT(*) AS total, COUNT(*) FILTER (WHERE correct_prediction) AS correct, ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct FROM fault_feedback GROUP BY recommended_fault ORDER BY total DESC`);
-    const byModelVersion = await db.manyOrNone(`SELECT model_version, COUNT(*) AS total, COUNT(*) FILTER (WHERE correct_prediction) AS correct, ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct FROM fault_feedback GROUP BY model_version ORDER BY model_version`);
+    const zoneId = req.user.role === 'GVMC_EE' ? req.user.zone_id : null;
+    if (req.user.role === 'GVMC_EE' && !zoneId) {
+      return res.status(403).json({ ok: false, error: 'Access denied: user has no assigned zone' });
+    }
+    const filter = zoneId ? 'WHERE w.zone_id = $1' : '';
+    const params = zoneId ? [zoneId] : [];
+    const join = zoneId ? `
+      FROM fault_feedback ff
+      JOIN work_orders wo ON wo.work_order_id = ff.work_order_id
+      JOIN poles p ON p.pole_id = wo.pole_id
+      JOIN junction_boxes jb ON p.cabinet_id = jb.cabinet_id
+      JOIN wards w ON jb.ward_id = w.ward_id` : 'FROM fault_feedback ff';
+    const overall = await db.oneOrNone(`
+      SELECT COUNT(*) AS total_verified,
+             COUNT(*) FILTER (WHERE correct_prediction) AS correct_count,
+             ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct
+      ${join} ${filter}
+    `, params);
+    const byFaultType = await db.manyOrNone(`
+      SELECT recommended_fault, COUNT(*) AS total,
+             COUNT(*) FILTER (WHERE correct_prediction) AS correct,
+             ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct
+      ${join} ${filter}
+      GROUP BY recommended_fault ORDER BY total DESC
+    `, params);
+    const byModelVersion = await db.manyOrNone(`
+      SELECT model_version, COUNT(*) AS total,
+             COUNT(*) FILTER (WHERE correct_prediction) AS correct,
+             ROUND(COUNT(*) FILTER (WHERE correct_prediction)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy_pct
+      ${join} ${filter}
+      GROUP BY model_version ORDER BY model_version
+    `, params);
     res.json({ ok: true, overall: overall || { total_verified: 0, correct_count: 0, accuracy_pct: null }, by_fault_type: byFaultType, by_model_version: byModelVersion, note: overall?.total_verified > 0 ? null : 'No verifications logged yet — accuracy figures will populate as field engineers confirm real recommendations.' });
   } catch (err) {
     logger.error('Accuracy summary error', { error: err.message });
