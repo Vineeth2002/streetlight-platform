@@ -6,6 +6,7 @@ const {requireAuth,requireRole}=require('../middleware/auth');
 const router=express.Router();
 const READ=['SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','READ_ONLY'];
 router.use(requireAuth,requireRole(...READ));
+function assertScopedIdentity(user,res){if(user.role==='GVMC_EE'&&!user.zone_id){res.status(403).json({ok:false,error:'Access denied: user has no assigned zone'});return false;}return true;}
 function scope(user,params,where,alias='v'){
   if(user.role==='GVMC_EE'){
     params.push(user.zone_id);
@@ -13,6 +14,7 @@ function scope(user,params,where,alias='v'){
   }
 }
 router.get('/clusters',async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];
     scope(req.user,params,where);
@@ -36,6 +38,7 @@ router.get('/clusters',async(req,res)=>{
   }catch(e){logger.error('Network risk clusters error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}
 });
 router.get('/summary',async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];
     scope(req.user,params,where);
@@ -50,6 +53,7 @@ router.get('/summary',async(req,res)=>{
   }catch(e){logger.error('Network risk summary error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}
 });
 router.get('/hotspots',async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];
     scope(req.user,params,where);
