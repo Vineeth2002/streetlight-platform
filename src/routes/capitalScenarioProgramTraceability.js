@@ -8,6 +8,10 @@ const READ=['SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','READ_ONLY'];
 const WRITE=['SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE'];
 router.use(requireAuth);
 
+function assertScopedIdentity(user,res){
+  if(user.role==='GVMC_EE'&&!user.zone_id){res.status(403).json({ok:false,error:'Access denied: user has no assigned zone'});return false;}
+  return true;
+}
 function scope(user,params,where,alias='v'){
   if(user.role==='GVMC_EE'){
     params.push(user.zone_id);
@@ -16,6 +20,7 @@ function scope(user,params,where,alias='v'){
 }
 
 router.get('/links',requireRole(...READ),async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];
     scope(req.user,params,where);
@@ -27,6 +32,7 @@ router.get('/links',requireRole(...READ),async(req,res)=>{
 });
 
 router.get('/summary',requireRole(...READ),async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];
     scope(req.user,params,where);
@@ -37,6 +43,7 @@ router.get('/summary',requireRole(...READ),async(req,res)=>{
 });
 
 router.post('/links',requireRole(...WRITE),async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const scenarioKey=String(req.body.scenario_key||'').trim();
     const programId=Number(req.body.capital_program_id);
@@ -46,13 +53,13 @@ router.post('/links',requireRole(...WRITE),async(req,res)=>{
     if(!scenarioKey||!Number.isInteger(programId)||programId<1||!rationale)return res.status(400).json({ok:false,error:'scenario_key, valid capital_program_id and selection_rationale are required'});
     if(decisionId!==null&&(!Number.isInteger(decisionId)||decisionId<1))return res.status(400).json({ok:false,error:'Invalid decision_id'});
     if(zoneId!==null&&(!Number.isInteger(zoneId)||zoneId<1))return res.status(400).json({ok:false,error:'Invalid zone_id'});
-    if(req.user.role==='GVMC_EE'&&zoneId!==null&&zoneId!==Number(req.user.zone_id))return res.status(403).json({ok:false,error:'Scenario-program link outside your zone'});
+    if(req.user.role==='GVMC_EE'&&(zoneId===null||zoneId!==Number(req.user.zone_id)))return res.status(403).json({ok:false,error:'Scenario-program link outside your zone'});
     const program=await db.oneOrNone('SELECT * FROM municipal_capital_programs WHERE capital_program_id=$1',[programId]);
     if(!program)return res.status(404).json({ok:false,error:'Capital program not found'});
     if(req.user.role==='GVMC_EE'&&program.zone_id!==null&&Number(program.zone_id)!==Number(req.user.zone_id))return res.status(403).json({ok:false,error:'Capital program outside your zone'});
     if(zoneId!==null&&program.zone_id!==null&&Number(program.zone_id)!==zoneId)return res.status(400).json({ok:false,error:'Link zone does not match capital program zone'});
     let decision=null;
-    if(decisionId!==null){decision=await db.oneOrNone('SELECT * FROM municipal_capital_portfolio_decisions WHERE decision_id=$1',[decisionId]);if(!decision)return res.status(404).json({ok:false,error:'Capital portfolio decision not found'});if(decision.selected_scenario_key!==scenarioKey)return res.status(400).json({ok:false,error:'Decision scenario does not match scenario_key'});if(decision.zone_id!==null&&zoneId!==null&&Number(decision.zone_id)!==zoneId)return res.status(400).json({ok:false,error:'Decision zone does not match link zone'});}
+    if(decisionId!==null){decision=await db.oneOrNone('SELECT * FROM municipal_capital_portfolio_decisions WHERE decision_id=$1',[decisionId]);if(!decision)return res.status(404).json({ok:false,error:'Capital portfolio decision not found'});if(decision.selected_scenario_key!==scenarioKey)return res.status(400).json({ok:false,error:'Decision scenario does not match scenario_key'});if(req.user.role==='GVMC_EE'&&decision.zone_id!==null&&Number(decision.zone_id)!==Number(req.user.zone_id))return res.status(403).json({ok:false,error:'Decision outside your zone'});if(decision.zone_id!==null&&zoneId!==null&&Number(decision.zone_id)!==zoneId)return res.status(400).json({ok:false,error:'Decision zone does not match link zone'});}
     const guidance=await db.oneOrNone(`SELECT * FROM v_municipal_capital_decision_revalidated_scenario_guidance WHERE scenario_key=$1 AND zone_id IS NOT DISTINCT FROM $2::int LIMIT 1`,[scenarioKey,zoneId]);
     const link=await db.one(`INSERT INTO municipal_capital_scenario_program_links(scenario_key,zone_id,capital_program_id,decision_id,guidance_state,revalidation_state,selection_rationale,evidence_snapshot,selected_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[scenarioKey,zoneId,programId,decisionId,guidance?.guidance_state??null,guidance?.revalidation_states??null,rationale,req.body.evidence_snapshot||{},req.user.user_id]);
     await auditLog(req,{action:'MUNICIPAL_CAPITAL_SCENARIO_PROGRAM_LINKED',entity_type:'municipal_capital_program',entity_id:programId,metadata:{scenario_key:scenarioKey,zone_id:zoneId,decision_id:decisionId,link_id:link.link_id}});
