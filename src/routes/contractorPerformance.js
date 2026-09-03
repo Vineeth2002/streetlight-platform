@@ -9,6 +9,18 @@ const router = express.Router();
 router.use(requireAuth);
 router.use(requireRole('SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE', 'CONTRACTOR', 'READ_ONLY'));
 
+function assertScopedIdentity(user, res) {
+  if (user.role === 'CONTRACTOR' && !user.contractor_id) {
+    res.status(403).json({ ok: false, error: 'Access denied: user has no assigned contractor' });
+    return false;
+  }
+  if (user.role === 'GVMC_EE' && !user.zone_id) {
+    res.status(403).json({ ok: false, error: 'Access denied: user has no assigned zone' });
+    return false;
+  }
+  return true;
+}
+
 function contractorScope(user, params, conditions, startIndex) {
   let idx = startIndex;
   if (user.role === 'CONTRACTOR') {
@@ -22,6 +34,7 @@ function contractorScope(user, params, conditions, startIndex) {
 }
 
 router.get('/summary', async (req, res) => {
+  if (!assertScopedIdentity(req.user, res)) return;
   try {
     const params = [];
     const conditions = [];
@@ -66,6 +79,7 @@ router.get('/summary', async (req, res) => {
 });
 
 router.get('/:id/history', async (req, res) => {
+  if (!assertScopedIdentity(req.user, res)) return;
   const contractorId = Number.parseInt(req.params.id, 10);
   if (!Number.isInteger(contractorId)) return res.status(400).json({ ok: false, error: 'Invalid contractor id' });
   if (req.user.role === 'CONTRACTOR' && contractorId !== req.user.contractor_id) {
