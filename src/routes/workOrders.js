@@ -15,9 +15,10 @@ const createSchema = Joi.object({
   reported_by: Joi.string().max(100).optional().allow('', null),
 });
 
+// Resolution timestamps are owned by the explicit lifecycle workflow.
+// The legacy PATCH endpoint may only update operator notes.
 const updateSchema = Joi.object({
   resolution_notes: Joi.string().max(2000).optional().allow('', null),
-  resolved_timestamp: Joi.string().isoDate().optional().allow(null),
 }).min(1);
 
 function buildRoleFilter(user) {
@@ -184,7 +185,6 @@ router.patch('/:id', requireRole('SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','CO
     const updates = [], params = [];
     let idx = 1;
     if (value.resolution_notes !== undefined) { updates.push(`resolution_notes = $${idx++}`); params.push(value.resolution_notes); }
-    if (value.resolved_timestamp !== undefined) { updates.push(`resolved_timestamp = $${idx++}`); params.push(value.resolved_timestamp); }
     params.push(workOrderId);
     await db.none(`UPDATE work_orders SET ${updates.join(', ')} WHERE work_order_id = $${idx}`, params);
     await auditLog(req.user.user_id, 'WORK_ORDER_NOTES_UPDATED', 'work_orders', workOrderId, true, { changes: value }, req);
