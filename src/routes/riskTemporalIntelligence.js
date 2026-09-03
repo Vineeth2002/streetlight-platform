@@ -6,6 +6,10 @@ const {requireAuth,requireRole}=require('../middleware/auth');
 const router=express.Router();
 const READ=['SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','READ_ONLY'];
 router.use(requireAuth,requireRole(...READ));
+function assertScopedIdentity(user,res){
+  if(user.role==='GVMC_EE'&&!user.zone_id){res.status(403).json({ok:false,error:'Access denied: user has no assigned zone'});return false;}
+  return true;
+}
 function scope(user,params,where,alias='v'){
   if(user.role==='GVMC_EE'){
     params.push(user.zone_id);
@@ -13,6 +17,7 @@ function scope(user,params,where,alias='v'){
   }
 }
 router.get('/assets',async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];scope(req.user,params,where);
     if(req.query.direction){if(!['RISING','IMPROVING','STABLE','NO_HISTORY'].includes(req.query.direction))return res.status(400).json({ok:false,error:'Invalid trend direction'});params.push(req.query.direction);where.push(`v.trend_direction=$${params.length}`);}
@@ -22,6 +27,7 @@ router.get('/assets',async(req,res)=>{
   }catch(e){logger.error('Risk temporal assets error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}
 });
 router.get('/clusters',async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];scope(req.user,params,where);
     if(req.query.type){if(!['ZONE','WARD','ROAD'].includes(req.query.type))return res.status(400).json({ok:false,error:'Invalid cluster type'});params.push(req.query.type);where.push(`v.cluster_type=$${params.length}`);}
@@ -31,6 +37,7 @@ router.get('/clusters',async(req,res)=>{
   }catch(e){logger.error('Risk temporal clusters error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}
 });
 router.get('/command',async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];scope(req.user,params,where);
     if(req.query.state){params.push(req.query.state);where.push(`v.temporal_priority_state=$${params.length}`);}
@@ -39,6 +46,7 @@ router.get('/command',async(req,res)=>{
   }catch(e){logger.error('Risk temporal command error',{error:e.message});res.status(500).json({ok:false,error:'Internal server error'});}
 });
 router.get('/summary',async(req,res)=>{
+  if(!assertScopedIdentity(req.user,res))return;
   try{
     const params=[],where=[];scope(req.user,params,where);
     const rows=await db.manyOrNone(`SELECT cluster_trend_direction,cluster_temporal_state,COUNT(*)::int AS clusters,SUM(assets)::int AS assets,SUM(rising_assets)::int AS rising_assets,SUM(improving_assets)::int AS improving_assets,SUM(persistent_assets)::int AS persistent_assets,SUM(new_signal_assets)::int AS new_signal_assets,ROUND(AVG(avg_composite_delta),2) AS avg_composite_delta FROM v_municipal_risk_temporal_clusters v ${where.length?'WHERE '+where.join(' AND '):''} GROUP BY cluster_trend_direction,cluster_temporal_state ORDER BY clusters DESC`,params);
