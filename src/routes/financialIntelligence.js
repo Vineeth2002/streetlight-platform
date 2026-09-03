@@ -1,13 +1,24 @@
 'use strict';
-
-const express = require('express');
-const db = require('../../config/database');
-const logger = require('../utils/logger');
+const express=require('express');
+const db=require('../../config/database');
+const logger=require('../utils/logger');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
-const router = express.Router();
+const router=express.Router();
 router.use(requireAuth);
 router.use(requireRole('SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','CONTRACTOR','READ_ONLY'));
+
+function assertScopedIdentity(user,res) {
+  if (user.role === 'GVMC_EE' && !user.zone_id) {
+    res.status(403).json({ok:false,error:'Access denied: user has no assigned zone'});
+    return false;
+  }
+  if (user.role === 'CONTRACTOR' && !user.contractor_id) {
+    res.status(403).json({ok:false,error:'Access denied: user has no assigned contractor'});
+    return false;
+  }
+  return true;
+}
 
 function scope(user, params, conditions) {
   if (user.role === 'CONTRACTOR') {
@@ -20,6 +31,7 @@ function scope(user, params, conditions) {
 }
 
 router.get('/', async (req,res) => {
+  if (!assertScopedIdentity(req.user,res)) return;
   try {
     const params=[],conditions=[];
     scope(req.user,params,conditions);
@@ -31,6 +43,7 @@ router.get('/', async (req,res) => {
 });
 
 router.get('/contract/:id', async (req,res) => {
+  if (!assertScopedIdentity(req.user,res)) return;
   const id=Number.parseInt(req.params.id,10);
   if(!Number.isInteger(id))return res.status(400).json({ok:false,error:'Invalid contract id'});
   try {
