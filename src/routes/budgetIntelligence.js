@@ -1,5 +1,4 @@
 'use strict';
-
 const express = require('express');
 const router = express.Router();
 const db = require('../../config/database');
@@ -7,6 +6,16 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 
 router.use(requireAuth);
 router.use(requireRole('SUPER_ADMIN','GVMC_COMMISSIONER','GVMC_EE','CONTRACTOR','READ_ONLY'));
+
+function assertScopedIdentity(user, res) {
+  if (user.role === 'GVMC_EE' && !user.zone_id) {
+    return res.status(403).json({ ok:false, error:'Access denied: user has no assigned zone' }), false;
+  }
+  if (user.role === 'CONTRACTOR' && !user.contractor_id) {
+    return res.status(403).json({ ok:false, error:'Access denied: user has no assigned contractor' }), false;
+  }
+  return true;
+}
 
 async function scopedBudgetWhere(user, alias='b') {
   if (user.role === 'GVMC_EE') {
@@ -26,6 +35,7 @@ async function scopedBudgetWhere(user, alias='b') {
 }
 
 router.get('/', async (req, res, next) => {
+  if (!assertScopedIdentity(req.user, res)) return;
   try {
     const scope = await scopedBudgetWhere(req.user);
     const rows = await db.any(`
@@ -50,6 +60,7 @@ router.get('/', async (req, res, next) => {
 });
 
 router.get('/:id', async (req, res, next) => {
+  if (!assertScopedIdentity(req.user, res)) return;
   try {
     const budgetId = Number(req.params.id);
     if (!Number.isInteger(budgetId) || budgetId <= 0) return res.status(400).json({ ok:false, error:'Invalid budget id' });
