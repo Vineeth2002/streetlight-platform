@@ -6,6 +6,14 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const READ_ROLES = ['SUPER_ADMIN', 'GVMC_COMMISSIONER', 'GVMC_EE', 'READ_ONLY'];
 router.use(requireAuth, requireRole(READ_ROLES));
 
+function assertScopedIdentity(user, res) {
+  if (user.role === 'GVMC_EE' && !user.zone_id) {
+    res.status(403).json({ ok: false, error: 'Access denied: user has no assigned zone' });
+    return false;
+  }
+  return true;
+}
+
 function buildScope(req, values) {
   if (req.user.role !== 'GVMC_EE') return '';
   values.push(req.user.zone_id);
@@ -14,6 +22,7 @@ function buildScope(req, values) {
 
 router.get('/memory', async (req, res) => {
   try {
+    if (!assertScopedIdentity(req.user, res)) return;
     const values = [], clauses = [];
     if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
     if (req.query.memory_state) { values.push(req.query.memory_state); clauses.push(`memory_state=$${values.length}`); }
@@ -26,6 +35,7 @@ router.get('/memory', async (req, res) => {
 
 router.get('/precedents', async (req, res) => {
   try {
+    if (!assertScopedIdentity(req.user, res)) return;
     const values = [], clauses = [`memory_state='VALIDATED_DECISION_HISTORY'`];
     if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
     if (req.query.zone_id && req.user.role !== 'GVMC_EE') { values.push(req.query.zone_id); clauses.push(`zone_id=$${values.length}`); }
@@ -38,6 +48,7 @@ router.get('/precedents', async (req, res) => {
 
 router.get('/learning', async (req, res) => {
   try {
+    if (!assertScopedIdentity(req.user, res)) return;
     const values = [], clauses = [];
     if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
     const scope = buildScope(req, values);
@@ -49,6 +60,7 @@ router.get('/learning', async (req, res) => {
 
 router.get('/revalidated', async (req, res) => {
   try {
+    if (!assertScopedIdentity(req.user, res)) return;
     const values = [], clauses = [];
     if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
     if (req.query.revalidation_state) { values.push(req.query.revalidation_state); clauses.push(`revalidation_state=$${values.length}`); }
@@ -56,13 +68,14 @@ router.get('/revalidated', async (req, res) => {
     const scope = buildScope(req, values);
     if (scope) clauses.push(scope.replace(/^ AND /, ''));
     const where = clauses.filter(Boolean);
-    const result = await pool.query(`SELECT * FROM v_municipal_capital_decision_knowledge_revalidation${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY latest_review_resolved_at DESC NULLS LAST, decision_id DESC LIMIT 200`, values);
+    const result = await pool.query(`SELECT * FROM v_municipal_capital_decision_knowledge_revalidation${where.length ? ` WHERE ${where.join(' AND ')} ` : ''}ORDER BY latest_review_resolved_at DESC NULLS LAST, decision_id DESC LIMIT 200`, values);
     res.json({ data: result.rows, count: result.rowCount, advisory: true, human_review_required: true });
   } catch (err) { res.status(500).json({ error: 'Failed to retrieve revalidated decision knowledge' }); }
 });
 
 router.get('/revalidation-summary', async (req, res) => {
   try {
+    if (!assertScopedIdentity(req.user, res)) return;
     const values = [], clauses = [];
     if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`selected_scenario_key=$${values.length}`); }
     if (req.query.zone_id && req.user.role !== 'GVMC_EE') { values.push(req.query.zone_id); clauses.push(`zone_id=$${values.length}`); }
@@ -76,6 +89,7 @@ router.get('/revalidation-summary', async (req, res) => {
 
 router.get('/scenario-guidance', async (req, res) => {
   try {
+    if (!assertScopedIdentity(req.user, res)) return;
     const values = [], clauses = [];
     if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`scenario_key=$${values.length}`); }
     if (req.query.guidance_state) { values.push(req.query.guidance_state); clauses.push(`guidance_state=$${values.length}`); }
@@ -90,6 +104,7 @@ router.get('/scenario-guidance', async (req, res) => {
 
 router.get('/scenario-guidance-summary', async (req, res) => {
   try {
+    if (!assertScopedIdentity(req.user, res)) return;
     const values = [], clauses = [];
     if (req.query.scenario_key) { values.push(req.query.scenario_key); clauses.push(`scenario_key=$${values.length}`); }
     if (req.query.guidance_state) { values.push(req.query.guidance_state); clauses.push(`guidance_state=$${values.length}`); }
@@ -99,7 +114,7 @@ router.get('/scenario-guidance-summary', async (req, res) => {
     const where = clauses.filter(Boolean);
     const result = await pool.query(`SELECT * FROM v_municipal_capital_decision_revalidated_scenario_summary${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY revalidated_decisions DESC NULLS LAST, scenario_key`, values);
     res.json({ data: result.rows, count: result.rowCount, advisory: true, human_review_required: true, governance_constraint: 'NO_AUTOMATIC_SCENARIO_SELECTION' });
-  } catch (err) { res.status(500).json({ error: 'Failed to retrieve scenario guidance summary' }); }
+  } catch (err) { res.status(500).json({ error: 'Failed to retrieve revalidated scenario guidance summary' }); }
 });
 
 module.exports = router;
