@@ -82,6 +82,44 @@ async function enforceWorkOrderScope(req, res) {
   return true;
 }
 
+async function enforceAttachmentScope(req, res) {
+  if (req.baseUrl !== '/api/v1/attachments' || req.user.role !== 'GVMC_EE') return true;
+  if (!req.user.zone_id) {
+    logger.warn('GVMC_EE denied attachment access because no zone is assigned', { user_id: req.user.user_id, path: req.path });
+    res.status(403).json({ ok: false, error: 'Access denied: user has no assigned zone' });
+    return false;
+  }
+
+  const idMatch = req.path.match(/^\/(?:pole\/)?(\d+)(?:\/|$)/);
+  if ((req.method === 'GET' || req.method === 'PATCH') && idMatch) {
+    const attachmentIdOrPoleId = Number.parseInt(idMatch[1], 10);
+    const lookup = req.path.startsWith('/pole/')
+      ? `SELECT a.attachment_id FROM smart_city_attachments a JOIN poles p ON a.pole_id = p.pole_id JOIN junction_boxes jb ON p.cabinet_id = jb.cabinet_id JOIN wards w ON jb.ward_id = w.ward_id WHERE a.pole_id = $1 AND w.zone_id = $2 LIMIT 1`
+      : `SELECT a.attachment_id FROM smart_city_attachments a JOIN poles p ON a.pole_id = p.pole_id JOIN junction_boxes jb ON p.cabinet_id = jb.cabinet_id JOIN wards w ON jb.ward_id = w.ward_id WHERE a.attachment_id = $1 AND w.zone_id = $2`;
+    const row = await db.oneOrNone(lookup, [attachmentIdOrPoleId, req.user.zone_id]);
+    if (!row) {
+      logger.warn('GVMC_EE denied cross-zone attachment access', { user_id: req.user.user_id, zone_id: req.user.zone_id, path: req.path });
+      res.status(403).json({ ok: false, error: 'Access denied' });
+      return false;
+    }
+  }
+
+  if (req.method === 'POST' && req.path === '/') {
+    const poleId = Number(req.body?.pole_id);
+    if (!Number.isInteger(poleId)) {
+      res.status(400).json({ ok: false, error: 'Invalid pole_id' });
+      return false;
+    }
+    const pole = await db.oneOrNone(`SELECT p.pole_id FROM poles p JOIN junction_boxes jb ON p.cabinet_id = jb.cabinet_id JOIN wards w ON jb.ward_id = w.ward_id WHERE p.pole_id = $1 AND w.zone_id = $2`, [poleId, req.user.zone_id]);
+    if (!pole) {
+      logger.warn('GVMC_EE denied cross-zone attachment creation', { user_id: req.user.user_id, zone_id: req.user.zone_id, pole_id: poleId });
+      res.status(403).json({ ok: false, error: 'Access denied' });
+      return false;
+    }
+  }
+  return true;
+}
+
 async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -93,6 +131,7 @@ async function requireAuth(req, res, next) {
     req.user = user;
     if (!(await enforcePoleScope(req, res))) return;
     if (!(await enforceWorkOrderScope(req, res))) return;
+    if (!(await enforceAttachmentScope(req, res))) return;
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') return res.status(401).json({ ok: false, error: 'Token expired' });
