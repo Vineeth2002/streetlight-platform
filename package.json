@@ -7,7 +7,7 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "migrate": "node db/migrate.js",
-    "test": "jest --runInBand",
+    "test": "jest --runInBand --setupFiles dotenv/config",
     "billing:run": "node src/services/slaBillingService.js"
   },
   "dependencies": {
