@@ -64,7 +64,7 @@ router.post('/node', async (req, res) => {
       try {
         const jwt = require('jsonwebtoken');
         const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'change_this_in_production');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         if (decoded) authorized = true;
       } catch (err) {
         // Invalid token
@@ -190,7 +190,7 @@ router.post('/attachment', async (req, res) => {
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(
         authHeader.split(' ')[1],
-        process.env.JWT_SECRET || 'change_this_in_production'
+        process.env.JWT_SECRET
       );
       if (decoded) authorized = true;
     } catch (err) {}

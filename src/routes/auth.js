@@ -8,7 +8,10 @@ const db        = require('../../config/database');
 const logger    = require('../utils/logger');
 const { auditLog, requireAuth } = require('../middleware/auth');
 
-const JWT_SECRET           = process.env.JWT_SECRET  || 'change_this_in_production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required and was not set. Refusing to start with an insecure fallback.');
+}
 const JWT_EXPIRES_IN       = process.env.JWT_EXPIRES  || '8h';
 const REFRESH_EXPIRES_DAYS = 1;
 const MAX_LOGIN_ATTEMPTS   = 5;

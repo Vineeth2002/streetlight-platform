@@ -2,7 +2,15 @@ const jwt        = require('jsonwebtoken');
 const db         = require('../../config/database');
 const logger     = require('../utils/logger');
 
-const JWT_SECRET  = process.env.JWT_SECRET || 'change_this_in_production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  // Fail loudly at startup rather than silently signing/verifying
+  // tokens with a publicly-known fallback string — that fallback
+  // would let anyone forge a valid JWT for any user, including
+  // SUPER_ADMIN, against any deployment that accidentally runs
+  // without JWT_SECRET set.
+  throw new Error('JWT_SECRET environment variable is required and was not set. Refusing to start with an insecure fallback.');
+}
 
 // ─── VERIFY JWT TOKEN ────────────────────────────────────────────────────────
 async function requireAuth(req, res, next) {
