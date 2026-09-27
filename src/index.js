@@ -33,7 +33,15 @@ const TOTAL_POLES = parseInt(process.env.TOTAL_POLES) || 200000;
 // ─── Express app ──────────────────────────────────────────────────────────────
 const app = express();
 // Trust Render's proxy
-app.set('trust proxy', 1);
+// Trust Render's proxy chain. Render sits behind Cloudflare's edge plus its
+// own internal routing layer — more than one hop, and the exact count isn't
+// documented/guaranteed — so trusting a fixed hop count (`1`) was resolving
+// req.ip to an internal Render IP that varied between requests, silently
+// breaking both the brute-force lockout and the general rate limiter (both
+// key off req.ip). `true` trusts the whole X-Forwarded-For chain and takes
+// the leftmost (original client) address, which is correct for any PaaS
+// where all traffic is guaranteed to arrive via the platform's own edge.
+app.set('trust proxy', true);
 
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet({
