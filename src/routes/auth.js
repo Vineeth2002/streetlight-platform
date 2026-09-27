@@ -17,49 +17,41 @@ const REFRESH_EXPIRES_DAYS = 1;
 const MAX_LOGIN_ATTEMPTS   = 5;
 const LOCKOUT_MINUTES      = 15;
 
-// ─── In-memory brute force tracker ───────────────────────────────────────────
-// For production use Redis instead
-const loginAttempts = new Map();
+// ─── DB-backed brute force tracker ───────────────────────────────────────────
+// Persisted in the login_attempts table (db/007_login_attempts.sql) rather
+// than an in-memory Map, so lockout state survives process restarts —
+// Render restarts on every deploy, which was silently resetting the old
+// in-memory tracker mid-lockout-window.
+async function checkBruteForce(email, ip) {
+  const cutoff = new Date(Date.now() - LOCKOUT_MINUTES * 60000);
 
-function getAttemptKey(email, ip) {
-  return `${email}:${ip}`;
+  const row = await db.oneOrNone(
+    `SELECT COUNT(*) AS count, MIN(attempted_at) AS first_attempt
+     FROM login_attempts
+     WHERE email = $1 AND ip_address = $2 AND attempted_at > $3`,
+    [email, ip, cutoff]
+  );
+
+  const count = parseInt(row?.count, 10) || 0;
+  if (count < MAX_LOGIN_ATTEMPTS) return { blocked: false };
+
+  const elapsedMin = (Date.now() - new Date(row.first_attempt).getTime()) / 60000;
+  const remaining  = Math.ceil(LOCKOUT_MINUTES - elapsedMin);
+  return { blocked: true, remaining: Math.max(remaining, 1) };
 }
 
-function checkBruteForce(email, ip) {
-  const key  = getAttemptKey(email, ip);
-  const data = loginAttempts.get(key);
-  if (!data) return { blocked: false };
-
-  const now     = Date.now();
-  const elapsed = (now - data.firstAttempt) / 60000; // minutes
-
-  // Reset after lockout period
-  if (elapsed > LOCKOUT_MINUTES) {
-    loginAttempts.delete(key);
-    return { blocked: false };
-  }
-
-  if (data.count >= MAX_LOGIN_ATTEMPTS) {
-    const remaining = Math.ceil(LOCKOUT_MINUTES - elapsed);
-    return { blocked: true, remaining };
-  }
-
-  return { blocked: false };
+async function recordFailedAttempt(email, ip) {
+  await db.none(
+    `INSERT INTO login_attempts (email, ip_address) VALUES ($1, $2)`,
+    [email, ip]
+  );
 }
 
-function recordFailedAttempt(email, ip) {
-  const key  = getAttemptKey(email, ip);
-  const data = loginAttempts.get(key);
-  if (!data) {
-    loginAttempts.set(key, { count: 1, firstAttempt: Date.now() });
-  } else {
-    data.count++;
-    loginAttempts.set(key, data);
-  }
-}
-
-function clearAttempts(email, ip) {
-  loginAttempts.delete(getAttemptKey(email, ip));
+async function clearAttempts(email, ip) {
+  await db.none(
+    `DELETE FROM login_attempts WHERE email = $1 AND ip_address = $2`,
+    [email, ip]
+  );
 }
 
 // ─── Validation schemas ───────────────────────────────────────────────────────
@@ -84,7 +76,7 @@ router.post('/login', async (req, res) => {
   const ip = req.ip || req.connection.remoteAddress;
 
   // ── Brute force check ──
-  const bruteCheck = checkBruteForce(email, ip);
+  const bruteCheck = await checkBruteForce(email, ip);
   if (bruteCheck.blocked) {
     logger.warn('Login blocked — too many attempts', { email, ip });
     return res.status(429).json({
@@ -103,7 +95,7 @@ router.post('/login', async (req, res) => {
 
     // Same error for wrong email AND wrong password (security)
     if (!user) {
-      recordFailedAttempt(email, ip);
+      await recordFailedAttempt(email, ip);
       await auditLog(null, 'LOGIN_FAILED', 'users', null, false, { email }, req);
       return res.status(401).json({ ok: false, error: 'Invalid email or password' });
     }
@@ -115,13 +107,13 @@ router.post('/login', async (req, res) => {
 
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
-      recordFailedAttempt(email, ip);
+      await recordFailedAttempt(email, ip);
       await auditLog(user.user_id, 'LOGIN_FAILED', 'users', user.user_id, false, {}, req);
       return res.status(401).json({ ok: false, error: 'Invalid email or password' });
     }
 
     // ── Successful login — clear attempts ──
-    clearAttempts(email, ip);
+    await clearAttempts(email, ip);
 
     // Generate JWT
     const token = jwt.sign(
@@ -330,3 +322,9 @@ router.post('/logout-all', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+// Exported for direct testing (see tests/auth-brute-force.test.js) — the
+// route itself still uses these via closures above, this doesn't change
+// request behavior.
+module.exports.checkBruteForce    = checkBruteForce;
+module.exports.recordFailedAttempt = recordFailedAttempt;
+module.exports.clearAttempts       = clearAttempts;

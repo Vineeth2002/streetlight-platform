@@ -4,3 +4,5 @@ logs/
 *.log
 dist/
 .DS_Store
+login.json
+token.json
